@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app/app  # Hot reload for development
+    command: flask run --host=0.0.0.0 --port=5000

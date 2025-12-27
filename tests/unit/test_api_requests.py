@@ -1,0 +1,206 @@
+"""
+Unit tests for CatalogAI requests API endpoints.
+"""
+import pytest
+import json
+from unittest.mock import Mock, patch
+from app import create_app
+
+
+class TestRequestsAPI:
+    """Test requests API endpoints."""
+
+    @pytest.fixture
+    def app(self):
+        """Create Flask app for testing."""
+        app = create_app()
+        app.config['TESTING'] = True
+        return app
+
+    @pytest.fixture
+    def client(self, app):
+        """Create test client."""
+        return app.test_client()
+
+    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    @patch('app.api.requests.request_service')
+    def test_create_request_success(self, mock_service, mock_org_role, mock_jwt, client):
+        """Test successful request creation."""
+        # Setup mocks
+        mock_jwt.return_value = {"sub": "user-123"}
+        mock_org_role.return_value = ("org-123", "requester")
+
+        mock_service.create_request.return_value = {
+            "id": "request-123",
+            "item_name": "Laptop",
+            "status": "pending"
+        }
+
+        # Make request
+        response = client.post(
+            '/api/requests',
+            headers={'Authorization': 'Bearer test-token'},
+            data=json.dumps({
+                "item_name": "Laptop",
+                "quantity": 1,
+                "urgency": "normal",
+                "justification": "Need for work"
+            }),
+            content_type='application/json'
+        )
+
+        # Assertions
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert data["id"] == "request-123"
+        assert data["status"] == "pending"
+
+    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_create_request_missing_item_name(self, mock_org_role, mock_jwt, client):
+        """Test request creation fails without item name."""
+        # Setup mocks
+        mock_jwt.return_value = {"sub": "user-123"}
+        mock_org_role.return_value = ("org-123", "requester")
+
+        # Make request without item_name
+        response = client.post(
+            '/api/requests',
+            headers={'Authorization': 'Bearer test-token'},
+            data=json.dumps({
+                "quantity": 1
+            }),
+            content_type='application/json'
+        )
+
+        # Should return 400
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+
+    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    @patch('app.api.requests.request_service')
+    def test_list_requests(self, mock_service, mock_org_role, mock_jwt, client):
+        """Test listing requests."""
+        # Setup mocks
+        mock_jwt.return_value = {"sub": "user-123"}
+        mock_org_role.return_value = ("org-123", "requester")
+
+        mock_service.list_requests.return_value = [
+            {"id": "request-1", "status": "pending"},
+            {"id": "request-2", "status": "approved"}
+        ]
+
+        # Make request
+        response = client.get(
+            '/api/requests',
+            headers={'Authorization': 'Bearer test-token'}
+        )
+
+        # Assertions
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+
+    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    @patch('app.api.requests.request_service')
+    def test_get_request_by_id(self, mock_service, mock_org_role, mock_jwt, client):
+        """Test getting a specific request."""
+        # Setup mocks
+        mock_jwt.return_value = {"sub": "user-123"}
+        mock_org_role.return_value = ("org-123", "requester")
+
+        mock_service.get_request.return_value = {
+            "id": "request-123",
+            "item_name": "Laptop",
+            "status": "pending"
+        }
+
+        # Make request
+        response = client.get(
+            '/api/requests/request-123',
+            headers={'Authorization': 'Bearer test-token'}
+        )
+
+        # Assertions
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == "request-123"
+
+    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    @patch('app.api.requests.request_service')
+    def test_approve_request_as_admin(self, mock_service, mock_org_role, mock_jwt, client):
+        """Test approving a request as admin."""
+        # Setup mocks
+        mock_jwt.return_value = {"sub": "admin-123"}
+        mock_org_role.return_value = ("org-123", "admin")
+
+        mock_service.approve_request.return_value = {
+            "id": "request-123",
+            "status": "approved",
+            "reviewed_by": "admin-123"
+        }
+
+        # Make request
+        response = client.post(
+            '/api/requests/request-123/approve',
+            headers={'Authorization': 'Bearer test-token'},
+            data=json.dumps({"notes": "Approved for Q1"}),
+            content_type='application/json'
+        )
+
+        # Assertions
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["status"] == "approved"
+
+    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    @patch('app.api.requests.request_service')
+    def test_reject_request_as_reviewer(self, mock_service, mock_org_role, mock_jwt, client):
+        """Test rejecting a request as reviewer."""
+        # Setup mocks
+        mock_jwt.return_value = {"sub": "reviewer-123"}
+        mock_org_role.return_value = ("org-123", "reviewer")
+
+        mock_service.reject_request.return_value = {
+            "id": "request-123",
+            "status": "rejected",
+            "reviewed_by": "reviewer-123"
+        }
+
+        # Make request
+        response = client.post(
+            '/api/requests/request-123/reject',
+            headers={'Authorization': 'Bearer test-token'},
+            data=json.dumps({"notes": "Budget constraints"}),
+            content_type='application/json'
+        )
+
+        # Assertions
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["status"] == "rejected"
+
+    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_approve_request_requires_admin_or_reviewer(self, mock_org_role, mock_jwt, client):
+        """Test that only admin/reviewer can approve requests."""
+        # Setup mocks - regular requester role
+        mock_jwt.return_value = {"sub": "user-123"}
+        mock_org_role.return_value = ("org-123", "requester")
+
+        # Make request
+        response = client.post(
+            '/api/requests/request-123/approve',
+            headers={'Authorization': 'Bearer test-token'},
+            data=json.dumps({"notes": "Trying to approve"}),
+            content_type='application/json'
+        )
+
+        # Should be forbidden
+        assert response.status_code == 403

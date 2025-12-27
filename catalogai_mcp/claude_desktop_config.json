@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "catalogai-code-exec": {
+      "command": "uv",
+      "args": ["--directory", "/path/to/Cataloger/catalogai_mcp", "run", "server.py"],
+      "env": {
+        "CATALOGAI_API_URL": "http://localhost:5000"
+      }
+    }
+  }
+}
