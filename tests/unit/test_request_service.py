@@ -10,8 +10,8 @@ class TestRequestService:
     """Test request service operations."""
 
     @patch('app.services.request_service.get_supabase_client')
-    @patch('app.services.request_service.audit_service')
-    def test_create_request_success(self, mock_audit, mock_supabase_getter):
+    @patch('app.services.request_service.log_event')
+    def test_create_request_success(self, mock_log_event, mock_supabase_getter):
         """Test creating a new request."""
         # Setup mocks
         mock_supabase = Mock()
@@ -21,10 +21,10 @@ class TestRequestService:
         mock_response.data = [{
             "id": "request-123",
             "org_id": "org-123",
-            "requested_by": "user-123",
-            "item_name": "Laptop",
-            "quantity": 1,
-            "urgency": "normal",
+            "created_by": "user-123",
+            "search_query": "laptop",
+            "search_results": [{"name": "Laptop"}],
+            "justification": "Need for work",
             "status": "pending",
             "created_at": "2025-01-15T10:00:00Z"
         }]
@@ -34,20 +34,26 @@ class TestRequestService:
         # Create request
         result = request_service.create_request(
             org_id="org-123",
-            requested_by="user-123",
-            item_name="Laptop",
-            quantity=1,
-            urgency="normal",
+            created_by="user-123",
+            search_query="laptop",
+            search_results=[{"name": "Laptop"}],
             justification="Need for work"
         )
 
         # Assertions
         assert result["id"] == "request-123"
-        assert result["item_name"] == "Laptop"
+        assert result["search_query"] == "laptop"
         assert result["status"] == "pending"
 
         # Verify audit log
-        mock_audit.log_event.assert_called_once()
+        mock_log_event.assert_called_once_with(
+            org_id="org-123",
+            event_type="request.created",
+            actor_id="user-123",
+            resource_type="request",
+            resource_id="request-123",
+            metadata={"search_query": "laptop"}
+        )
 
     @patch('app.services.request_service.get_supabase_client')
     def test_get_request_by_id(self, mock_supabase_getter):
@@ -57,11 +63,11 @@ class TestRequestService:
         mock_supabase_getter.return_value = mock_supabase
 
         mock_response = Mock()
-        mock_response.data = [{
+        mock_response.data = {
             "id": "request-123",
-            "item_name": "Laptop",
+            "search_query": "laptop",
             "status": "pending"
-        }]
+        }
 
         mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_response
 
@@ -70,7 +76,7 @@ class TestRequestService:
 
         # Assertions
         assert result["id"] == "request-123"
-        assert result["item_name"] == "Laptop"
+        assert result["search_query"] == "laptop"
 
     @patch('app.services.request_service.get_supabase_client')
     def test_list_requests_with_filters(self, mock_supabase_getter):
@@ -86,9 +92,18 @@ class TestRequestService:
         ]
 
         # Mock the query chain
-        mock_query = Mock()
-        mock_query.eq.return_value.execute.return_value = mock_response
-        mock_supabase.table.return_value.select.return_value.eq.return_value = mock_query
+        mock_limit = Mock()
+        mock_limit.execute.return_value = mock_response
+        mock_order = Mock()
+        mock_order.limit.return_value = mock_limit
+        mock_eq2 = Mock()
+        mock_eq2.order.return_value = mock_order
+        mock_eq1 = Mock()
+        mock_eq1.eq.return_value = mock_eq2
+        mock_select = Mock()
+        mock_select.eq.return_value = mock_eq1
+
+        mock_supabase.table.return_value.select.return_value = mock_select
 
         # List requests
         result = request_service.list_requests(org_id="org-123", status="pending")
@@ -98,37 +113,30 @@ class TestRequestService:
         assert result[0]["status"] == "pending"
 
     @patch('app.services.request_service.get_supabase_client')
-    @patch('app.services.request_service.audit_service')
-    def test_approve_request(self, mock_audit, mock_supabase_getter):
-        """Test approving a request."""
+    @patch('app.services.request_service.log_event')
+    def test_review_request_approve(self, mock_log_event, mock_supabase_getter):
+        """Test approving a request via review."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
-
-        # Mock get request
-        mock_get_response = Mock()
-        mock_get_response.data = [{
-            "id": "request-123",
-            "status": "pending",
-            "org_id": "org-123"
-        }]
 
         # Mock update
         mock_update_response = Mock()
         mock_update_response.data = [{
             "id": "request-123",
+            "org_id": "org-123",
             "status": "approved",
             "reviewed_by": "admin-123"
         }]
 
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_get_response
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_update_response
 
-        # Approve request
-        result = request_service.approve_request(
+        # Review request (approve)
+        result = request_service.review_request(
             request_id="request-123",
             reviewed_by="admin-123",
-            notes="Approved for Q1"
+            status="approved",
+            review_notes="Approved for Q1"
         )
 
         # Assertions
@@ -136,40 +144,40 @@ class TestRequestService:
         assert result["reviewed_by"] == "admin-123"
 
         # Verify audit log
-        mock_audit.log_event.assert_called_once()
+        mock_log_event.assert_called_once_with(
+            org_id="org-123",
+            event_type="request.approved",
+            actor_id="admin-123",
+            resource_type="request",
+            resource_id="request-123",
+            metadata={"review_notes": "Approved for Q1"}
+        )
 
     @patch('app.services.request_service.get_supabase_client')
-    @patch('app.services.request_service.audit_service')
-    def test_reject_request(self, mock_audit, mock_supabase_getter):
-        """Test rejecting a request."""
+    @patch('app.services.request_service.log_event')
+    def test_review_request_reject(self, mock_log_event, mock_supabase_getter):
+        """Test rejecting a request via review."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
-
-        # Mock get request
-        mock_get_response = Mock()
-        mock_get_response.data = [{
-            "id": "request-123",
-            "status": "pending",
-            "org_id": "org-123"
-        }]
 
         # Mock update
         mock_update_response = Mock()
         mock_update_response.data = [{
             "id": "request-123",
+            "org_id": "org-123",
             "status": "rejected",
             "reviewed_by": "admin-123"
         }]
 
-        mock_supabase.table.return_value.select.return_value.eq.return_value.single.return_value.execute.return_value = mock_get_response
         mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_update_response
 
-        # Reject request
-        result = request_service.reject_request(
+        # Review request (reject)
+        result = request_service.review_request(
             request_id="request-123",
             reviewed_by="admin-123",
-            notes="Budget constraints"
+            status="rejected",
+            review_notes="Budget constraints"
         )
 
         # Assertions
@@ -177,4 +185,11 @@ class TestRequestService:
         assert result["reviewed_by"] == "admin-123"
 
         # Verify audit log
-        mock_audit.log_event.assert_called_once()
+        mock_log_event.assert_called_once_with(
+            org_id="org-123",
+            event_type="request.rejected",
+            actor_id="admin-123",
+            resource_type="request",
+            resource_id="request-123",
+            metadata={"review_notes": "Budget constraints"}
+        )

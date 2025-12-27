@@ -2,16 +2,31 @@
 Pytest configuration and fixtures.
 """
 import pytest
+import os
+from unittest.mock import patch
 from app import create_app
 from app.config import get_settings
+
+
+@pytest.fixture(scope='session', autouse=True)
+def setup_test_env():
+    """Setup test environment variables."""
+    os.environ['FLASK_ENV'] = 'testing'
+    os.environ['FLASK_SECRET_KEY'] = 'test-secret-key-for-testing-only'
+    os.environ['SUPABASE_URL'] = 'https://test.supabase.co'
+    os.environ['SUPABASE_KEY'] = 'test-anon-key'
+    os.environ['SUPABASE_SERVICE_ROLE_KEY'] = 'test-service-role-key'
+    os.environ['JWT_SECRET'] = 'test-jwt-secret'
+    yield
 
 
 @pytest.fixture
 def app():
     """Create Flask app for testing."""
-    app = create_app()
-    app.config['TESTING'] = True
-    return app
+    with patch('app.extensions.SentenceTransformer'):
+        app = create_app()
+        app.config['TESTING'] = True
+        return app
 
 
 @pytest.fixture
