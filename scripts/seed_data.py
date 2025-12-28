@@ -13,6 +13,7 @@ load_dotenv()
 
 from app.extensions import get_supabase_admin
 from app.services.catalog_service import create_item
+from app.services.product_enrichment_service import enrich_product
 
 
 def seed_organization():
@@ -33,94 +34,78 @@ def seed_organization():
     return org
 
 
-def seed_catalog_items(org_id: str, user_id: str):
-    """Create sample catalog items with realistic product data."""
-    sample_items = [
-        {
-            'name': 'Dell Latitude 7430 Laptop',
-            'description': '14" laptop with Intel Core i7, 16GB RAM, 512GB SSD. Perfect for business use.',
-            'category': 'Electronics',
-            'price': 1299.99,
-            'pricing_type': 'one_time',
-            'vendor': 'Dell',
-            'sku': 'LAT-7430-i7-16-512',
-            'product_url': 'https://www.dell.com/latitude-7430',
-            'metadata': {'warranty': '3 years', 'weight': '3.2 lbs'}
-        },
-        {
-            'name': 'Logitech MX Master 3 Mouse',
-            'description': 'Wireless ergonomic mouse with precision scrolling and customizable buttons.',
-            'category': 'Electronics',
-            'price': 99.99,
-            'pricing_type': 'one_time',
-            'vendor': 'Logitech',
-            'sku': 'MX-MASTER-3',
-            'product_url': 'https://www.logitech.com/mx-master-3',
-            'metadata': {'wireless': True, 'battery_life': '70 days'}
-        },
-        {
-            'name': 'Herman Miller Aeron Chair',
-            'description': 'Ergonomic office chair with adjustable lumbar support and breathable mesh.',
-            'category': 'Furniture',
-            'price': 1395.00,
-            'pricing_type': 'one_time',
-            'vendor': 'Herman Miller',
-            'sku': 'AERON-SIZE-B',
-            'product_url': 'https://www.hermanmiller.com/aeron',
-            'metadata': {'warranty': '12 years', 'size': 'B (Medium)'}
-        },
-        {
-            'name': 'Printer Paper (Ream)',
-            'description': 'Standard 8.5x11 white paper, 500 sheets per ream.',
-            'category': 'Office Supplies',
-            'price': 7.99,
-            'pricing_type': 'one_time',
-            'vendor': 'Staples',
-            'sku': 'PAPER-8.5X11-500',
-            'metadata': {'quantity': 500, 'brightness': '92'}
-        },
-        {
-            'name': 'AWS EC2 t3.medium Instance',
-            'description': 'Cloud compute instance with 2 vCPUs, 4GB RAM. Pay-as-you-go pricing.',
-            'category': 'Services',
-            'price': 0.0416,
-            'pricing_type': 'usage_based',
-            'vendor': 'Amazon Web Services',
-            'sku': 'EC2-T3-MEDIUM-US-EAST',
-            'product_url': 'https://aws.amazon.com/ec2/instance-types/t3',
-            'metadata': {'region': 'us-east-1', 'unit': 'per hour'}
-        },
-        {
-            'name': 'Microsoft 365 Business Standard',
-            'description': 'Office apps, cloud storage, email, and collaboration tools.',
-            'category': 'Services',
-            'price': 12.50,
-            'pricing_type': 'monthly',
-            'vendor': 'Microsoft',
-            'sku': 'M365-BUS-STD',
-            'product_url': 'https://www.microsoft.com/microsoft-365/business',
-            'metadata': {'storage': '1TB per user', 'includes': 'Teams, Exchange, SharePoint'}
-        }
+def seed_catalog_items(org_id: str, user_id: str, use_ai: bool = True):
+    """
+    Create sample catalog items using AI enrichment pipeline.
+    
+    Args:
+        org_id: Organization ID
+        user_id: User ID for created_by
+        use_ai: If True, use Gemini API to enrich products (default: True)
+    """
+    # Simple product names - AI will enrich with all details
+    product_names = [
+        'MacBook Pro 16 inch M3 Max',
+        'Dell XPS 15 9530',
+        'Logitech MX Master 3S',
+        'Herman Miller Aeron Chair Size B',
+        'HP OfficeJet Pro 9015e',
+        'Staples Copy Paper 8.5x11',
+        'Slack Business Plus',
+        'GitHub Enterprise Cloud',
+        'AWS EC2 t3.medium us-east-1',
+        'Zoom Workspace Pro'
     ]
 
-    for item_data in sample_items:
+    print(f"\n{'🤖 AI-Powered' if use_ai else '📝 Manual'} Catalog Seeding")
+    print(f"Creating {len(product_names)} catalog items...")
+
+    for product_name in product_names:
         try:
-            item = create_item(
-                org_id=org_id,
-                name=item_data['name'],
-                description=item_data['description'],
-                category=item_data['category'],
-                created_by=user_id,
-                price=item_data.get('price'),
-                pricing_type=item_data.get('pricing_type'),
-                vendor=item_data.get('vendor'),
-                sku=item_data.get('sku'),
-                product_url=item_data.get('product_url'),
-                metadata=item_data.get('metadata')
-            )
-            print(f"✅ Created catalog item: {item['name']}")
+            if use_ai:
+                print(f"\n🔍 Enriching: {product_name}")
+                
+                # Use Gemini to get full product details
+                enriched = enrich_product(product_name=product_name)
+                
+                print(f"   ├─ Vendor: {enriched.get('vendor', 'N/A')}")
+                print(f"   ├─ Price: ${enriched.get('price', 0):.2f}")
+                print(f"   └─ Confidence: {enriched.get('confidence', 'unknown')}")
+                
+                # Create catalog item with enriched data
+                item = create_item(
+                    org_id=org_id,
+                    name=enriched.get('name', product_name),
+                    description=enriched.get('description', ''),
+                    category=enriched.get('category', ''),
+                    created_by=user_id,
+                    price=enriched.get('price'),
+                    pricing_type=enriched.get('pricing_type'),
+                    vendor=enriched.get('vendor'),
+                    sku=enriched.get('sku'),
+                    product_url=enriched.get('product_url'),
+                    metadata={
+                        **enriched.get('metadata', {}),
+                        'ai_enriched': True,
+                        'ai_confidence': enriched.get('confidence', 'unknown')
+                    }
+                )
+                print(f"✅ Created: {item['name']}")
+                
+            else:
+                # Fallback: create with minimal data
+                item = create_item(
+                    org_id=org_id,
+                    name=product_name,
+                    description='',
+                    category='Uncategorized',
+                    created_by=user_id,
+                    metadata={'ai_enriched': False}
+                )
+                print(f"✅ Created: {item['name']} (minimal data)")
+                
         except Exception as e:
-            print(f"❌ Failed to create {item_data['name']}: {e}")
+            print(f"❌ Failed to create {product_name}: {e}")
 
 
 def main():
@@ -148,7 +133,18 @@ def main():
     if response.lower() == 'y':
         user_id = input("Enter user_id: ").strip()
         if user_id:
-            seed_catalog_items(org['id'], user_id)
+            # Ask if user wants to use AI enrichment
+            ai_response = input("Use AI enrichment (requires GEMINI_API_KEY)? (y/n, default=y): ").strip().lower()
+            use_ai = ai_response != 'n'  # Default to True unless explicitly 'n'
+            
+            if use_ai:
+                gemini_key = os.getenv('GEMINI_API_KEY')
+                if not gemini_key:
+                    print("⚠️  Warning: GEMINI_API_KEY not found in environment")
+                    print("Falling back to manual seeding...")
+                    use_ai = False
+            
+            seed_catalog_items(org['id'], user_id, use_ai=use_ai)
             print("\n✅ Database seeding complete!")
             print(f"📋 Organization ID: {org['id']}")
         else:

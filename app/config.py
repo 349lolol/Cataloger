@@ -27,7 +27,7 @@ class Settings(BaseSettings):
 
     # Gemini AI Configuration (for product enrichment)
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-2.0-flash-exp"  # Fast, cost-effective model with search
+    GEMINI_MODEL: str = "gemini-3-flash-preview"  # Gemini 3.0 Flash Preview - latest model with search grounding
 
     # AWS Configuration (for production deployment)
     USE_AWS_SECRETS: bool = False
