@@ -3,7 +3,7 @@
 -- =====================================================
 
 -- Get current user's organization ID from their memberships
-CREATE OR REPLACE FUNCTION auth.user_org_id()
+CREATE OR REPLACE FUNCTION public.user_org_id()
 RETURNS UUID AS $$
     SELECT org_id
     FROM org_memberships
@@ -12,7 +12,7 @@ RETURNS UUID AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
 -- Get current user's role in a specific organization
-CREATE OR REPLACE FUNCTION auth.user_role(org_uuid UUID)
+CREATE OR REPLACE FUNCTION public.user_role(org_uuid UUID)
 RETURNS TEXT AS $$
     SELECT role
     FROM org_memberships
@@ -21,7 +21,7 @@ RETURNS TEXT AS $$
 $$ LANGUAGE SQL STABLE SECURITY DEFINER;
 
 -- Check if user has at least one of the specified roles
-CREATE OR REPLACE FUNCTION auth.has_role(required_roles TEXT[])
+CREATE OR REPLACE FUNCTION public.has_role(required_roles TEXT[])
 RETURNS BOOLEAN AS $$
     SELECT EXISTS (
         SELECT 1
@@ -50,17 +50,17 @@ ALTER TABLE audit_events ENABLE ROW LEVEL SECURITY;
 -- Users can read their own organization
 CREATE POLICY "Users can read own org"
     ON orgs FOR SELECT
-    USING (id = auth.user_org_id());
+    USING (id = public.user_org_id());
 
 -- Only admins can create orgs (typically done via service role)
 CREATE POLICY "Admins can create orgs"
     ON orgs FOR INSERT
-    WITH CHECK (auth.has_role(ARRAY['admin']));
+    WITH CHECK (public.has_role(ARRAY['admin']));
 
 -- Admins can update their own org
 CREATE POLICY "Admins can update own org"
     ON orgs FOR UPDATE
-    USING (id = auth.user_org_id() AND auth.has_role(ARRAY['admin']));
+    USING (id = public.user_org_id() AND public.has_role(ARRAY['admin']));
 
 -- =====================================================
 -- ORG MEMBERSHIPS POLICIES
@@ -69,22 +69,22 @@ CREATE POLICY "Admins can update own org"
 -- Users can read memberships in their org
 CREATE POLICY "Users can read own org memberships"
     ON org_memberships FOR SELECT
-    USING (org_id = auth.user_org_id());
+    USING (org_id = public.user_org_id());
 
 -- Admins can create memberships in their org
 CREATE POLICY "Admins can create memberships"
     ON org_memberships FOR INSERT
-    WITH CHECK (org_id = auth.user_org_id() AND auth.has_role(ARRAY['admin']));
+    WITH CHECK (org_id = public.user_org_id() AND public.has_role(ARRAY['admin']));
 
 -- Admins can update memberships in their org
 CREATE POLICY "Admins can update memberships"
     ON org_memberships FOR UPDATE
-    USING (org_id = auth.user_org_id() AND auth.has_role(ARRAY['admin']));
+    USING (org_id = public.user_org_id() AND public.has_role(ARRAY['admin']));
 
 -- Admins can delete memberships in their org
 CREATE POLICY "Admins can delete memberships"
     ON org_memberships FOR DELETE
-    USING (org_id = auth.user_org_id() AND auth.has_role(ARRAY['admin']));
+    USING (org_id = public.user_org_id() AND public.has_role(ARRAY['admin']));
 
 -- =====================================================
 -- CATALOG ITEMS POLICIES
@@ -93,23 +93,23 @@ CREATE POLICY "Admins can delete memberships"
 -- All authenticated users can read items in their org
 CREATE POLICY "Users can read org catalog items"
     ON catalog_items FOR SELECT
-    USING (org_id = auth.user_org_id());
+    USING (org_id = public.user_org_id());
 
 -- Only admins can create catalog items directly
 -- (normal users create via proposals)
 CREATE POLICY "Admins can create catalog items"
     ON catalog_items FOR INSERT
-    WITH CHECK (org_id = auth.user_org_id() AND auth.has_role(ARRAY['admin']));
+    WITH CHECK (org_id = public.user_org_id() AND public.has_role(ARRAY['admin']));
 
 -- Only admins can update catalog items
 CREATE POLICY "Admins can update catalog items"
     ON catalog_items FOR UPDATE
-    USING (org_id = auth.user_org_id() AND auth.has_role(ARRAY['admin']));
+    USING (org_id = public.user_org_id() AND public.has_role(ARRAY['admin']));
 
 -- Only admins can delete catalog items
 CREATE POLICY "Admins can delete catalog items"
     ON catalog_items FOR DELETE
-    USING (org_id = auth.user_org_id() AND auth.has_role(ARRAY['admin']));
+    USING (org_id = public.user_org_id() AND public.has_role(ARRAY['admin']));
 
 -- =====================================================
 -- CATALOG ITEM EMBEDDINGS POLICIES
@@ -122,7 +122,7 @@ CREATE POLICY "Users can read embeddings"
         EXISTS (
             SELECT 1 FROM catalog_items
             WHERE catalog_items.id = catalog_item_embeddings.catalog_item_id
-            AND catalog_items.org_id = auth.user_org_id()
+            AND catalog_items.org_id = public.user_org_id()
         )
     );
 
@@ -136,17 +136,17 @@ CREATE POLICY "Users can read embeddings"
 -- Users can read requests in their org
 CREATE POLICY "Users can read org requests"
     ON requests FOR SELECT
-    USING (org_id = auth.user_org_id());
+    USING (org_id = public.user_org_id());
 
 -- Any authenticated user can create requests in their org
 CREATE POLICY "Users can create requests"
     ON requests FOR INSERT
-    WITH CHECK (org_id = auth.user_org_id() AND created_by = auth.uid());
+    WITH CHECK (org_id = public.user_org_id() AND created_by = auth.uid());
 
 -- Reviewers and admins can update requests (for approval/rejection)
 CREATE POLICY "Reviewers can update requests"
     ON requests FOR UPDATE
-    USING (org_id = auth.user_org_id() AND auth.has_role(ARRAY['reviewer', 'admin']));
+    USING (org_id = public.user_org_id() AND public.has_role(ARRAY['reviewer', 'admin']));
 
 -- =====================================================
 -- PROPOSALS POLICIES
@@ -155,17 +155,17 @@ CREATE POLICY "Reviewers can update requests"
 -- Users can read proposals in their org
 CREATE POLICY "Users can read org proposals"
     ON proposals FOR SELECT
-    USING (org_id = auth.user_org_id());
+    USING (org_id = public.user_org_id());
 
 -- Any authenticated user can create proposals in their org
 CREATE POLICY "Users can create proposals"
     ON proposals FOR INSERT
-    WITH CHECK (org_id = auth.user_org_id() AND proposed_by = auth.uid());
+    WITH CHECK (org_id = public.user_org_id() AND proposed_by = auth.uid());
 
 -- Reviewers and admins can update proposals (for approval/rejection/merge)
 CREATE POLICY "Reviewers can update proposals"
     ON proposals FOR UPDATE
-    USING (org_id = auth.user_org_id() AND auth.has_role(ARRAY['reviewer', 'admin']));
+    USING (org_id = public.user_org_id() AND public.has_role(ARRAY['reviewer', 'admin']));
 
 -- =====================================================
 -- AUDIT EVENTS POLICIES
@@ -174,7 +174,7 @@ CREATE POLICY "Reviewers can update proposals"
 -- Users can read audit events in their org
 CREATE POLICY "Users can read org audit events"
     ON audit_events FOR SELECT
-    USING (org_id = auth.user_org_id());
+    USING (org_id = public.user_org_id());
 
 -- Audit events are write-only via service role
 -- No INSERT policy for users (handled by backend via service role)
