@@ -16,6 +16,11 @@ def create_proposal(
     item_description: Optional[str] = None,
     item_category: Optional[str] = None,
     item_metadata: Optional[Dict] = None,
+    item_price: Optional[float] = None,
+    item_pricing_type: Optional[str] = None,
+    item_product_url: Optional[str] = None,
+    item_vendor: Optional[str] = None,
+    item_sku: Optional[str] = None,
     replacing_item_id: Optional[str] = None,
     request_id: Optional[str] = None
 ) -> Dict:
@@ -30,6 +35,11 @@ def create_proposal(
         item_description: Item description (for ADD/REPLACE)
         item_category: Item category (for ADD/REPLACE)
         item_metadata: Item metadata (for ADD/REPLACE)
+        item_price: Item price (for ADD/REPLACE)
+        item_pricing_type: Item pricing type (for ADD/REPLACE)
+        item_product_url: Item product URL (for ADD/REPLACE)
+        item_vendor: Item vendor (for ADD/REPLACE)
+        item_sku: Item SKU (for ADD/REPLACE)
         replacing_item_id: ID of item to replace/deprecate
         request_id: Optional link to originating request
 
@@ -56,6 +66,16 @@ def create_proposal(
         proposal_data['item_category'] = item_category
     if item_metadata:
         proposal_data['item_metadata'] = item_metadata
+    if item_price is not None:
+        proposal_data['item_price'] = item_price
+    if item_pricing_type:
+        proposal_data['item_pricing_type'] = item_pricing_type
+    if item_product_url:
+        proposal_data['item_product_url'] = item_product_url
+    if item_vendor:
+        proposal_data['item_vendor'] = item_vendor
+    if item_sku:
+        proposal_data['item_sku'] = item_sku
     if replacing_item_id:
         proposal_data['replacing_item_id'] = replacing_item_id
     if request_id:
@@ -81,8 +101,19 @@ def create_proposal(
     return proposal
 
 
-def get_proposal(proposal_id: str) -> Optional[Dict]:
-    """Get a single proposal by ID."""
+def get_proposal(proposal_id: str) -> Dict:
+    """
+    Get a single proposal by ID.
+
+    Args:
+        proposal_id: Proposal UUID
+
+    Returns:
+        Proposal data
+
+    Raises:
+        Exception: If proposal not found
+    """
     supabase = get_supabase_client()
     response = supabase.table('proposals') \
         .select('*') \
@@ -90,7 +121,10 @@ def get_proposal(proposal_id: str) -> Optional[Dict]:
         .single() \
         .execute()
 
-    return response.data if response.data else None
+    if not response.data:
+        raise Exception(f"Proposal not found: {proposal_id}")
+
+    return response.data
 
 
 def list_proposals(
@@ -119,8 +153,19 @@ def approve_proposal(
     review_notes: Optional[str] = None
 ) -> Dict:
     """
-    Approve a proposal and merge it into the catalog.
+    Approve a proposal and AUTOMATICALLY merge it into the catalog.
     Requires reviewer or admin role (enforced by RLS).
+
+    This function performs the complete approval workflow in one transaction:
+    1. Marks proposal as 'approved'
+    2. Executes merge logic (creates/updates catalog items automatically)
+    3. Marks proposal as 'merged'
+    4. Logs audit event
+
+    Merge behavior by proposal type:
+    - ADD_ITEM: Creates new catalog item with all product fields
+    - REPLACE_ITEM: Creates new catalog item + marks old item as deprecated
+    - DEPRECATE_ITEM: Marks existing item as deprecated
 
     Args:
         proposal_id: Proposal UUID
@@ -128,7 +173,12 @@ def approve_proposal(
         review_notes: Optional review comments
 
     Returns:
-        Updated proposal data
+        Updated proposal data with status='merged'
+
+    Example:
+        # Approve proposal - catalog item is auto-created
+        proposal = approve_proposal(proposal_id, reviewer_user_id, "LGTM")
+        # At this point, the catalog item already exists in catalog_items table
     """
     # Get proposal
     proposal = get_proposal(proposal_id)
@@ -228,8 +278,13 @@ def _merge_add_item(proposal: Dict, created_by: str):
         name=proposal['item_name'],
         description=proposal.get('item_description', ''),
         category=proposal.get('item_category', ''),
-        metadata=proposal.get('item_metadata', {}),
-        created_by=created_by
+        created_by=created_by,
+        price=proposal.get('item_price'),
+        pricing_type=proposal.get('item_pricing_type'),
+        product_url=proposal.get('item_product_url'),
+        vendor=proposal.get('item_vendor'),
+        sku=proposal.get('item_sku'),
+        metadata=proposal.get('item_metadata', {})
     )
 
 
@@ -238,24 +293,29 @@ def _merge_replace_item(proposal: Dict, created_by: str):
     # Deprecate old item
     old_item_id = proposal['replacing_item_id']
 
-    # Create new item
+    # Create new item (audit logging happens inside create_item)
     new_item = create_item(
         org_id=proposal['org_id'],
         name=proposal['item_name'],
         description=proposal.get('item_description', ''),
         category=proposal.get('item_category', ''),
-        metadata=proposal.get('item_metadata', {}),
-        created_by=created_by
+        created_by=created_by,
+        price=proposal.get('item_price'),
+        pricing_type=proposal.get('item_pricing_type'),
+        product_url=proposal.get('item_product_url'),
+        vendor=proposal.get('item_vendor'),
+        sku=proposal.get('item_sku'),
+        metadata=proposal.get('item_metadata', {})
     )
 
-    # Update old item to deprecated with replacement link
+    # Update old item to deprecated with replacement link (audit logging happens inside update_item)
     update_item(old_item_id, {
         'status': 'deprecated',
         'replacement_item_id': new_item['id']
-    })
+    }, updated_by=created_by)
 
 
 def _merge_deprecate_item(proposal: Dict, updated_by: str):
     """Mark item as deprecated."""
     item_id = proposal['replacing_item_id']
-    update_item(item_id, {'status': 'deprecated'})
+    update_item(item_id, {'status': 'deprecated'}, updated_by=updated_by)

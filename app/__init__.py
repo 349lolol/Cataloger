@@ -19,7 +19,7 @@ def create_app() -> Flask:
     CORS(app, resources={r"/api/*": {"origins": "*"}})
 
     # Register blueprints
-    from app.api import auth, catalog, requests, proposals, admin, health
+    from app.api import auth, catalog, requests, proposals, admin, health, products
 
     app.register_blueprint(auth.bp, url_prefix="/api")
     app.register_blueprint(catalog.bp, url_prefix="/api")
@@ -27,6 +27,7 @@ def create_app() -> Flask:
     app.register_blueprint(proposals.bp, url_prefix="/api")
     app.register_blueprint(admin.bp, url_prefix="/api")
     app.register_blueprint(health.bp, url_prefix="/api")
+    app.register_blueprint(products.bp, url_prefix="/api")
 
     # Register error handlers
     from app.middleware.error_handlers import register_error_handlers

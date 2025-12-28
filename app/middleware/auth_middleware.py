@@ -33,6 +33,10 @@ def get_user_from_token():
         return None
 
 
+# Note: Tests should import get_user_from_token directly
+# verify_jwt_token was removed - use get_user_from_token instead
+
+
 def get_user_org_and_role(user_id: str):
     """
     Get user's organization ID and role from org_memberships.

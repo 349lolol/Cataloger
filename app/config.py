@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384
 
+    # Gemini AI Configuration (for product enrichment)
+    GEMINI_API_KEY: str
+    GEMINI_MODEL: str = "gemini-2.0-flash-exp"  # Fast, cost-effective model with search
+
     # AWS Configuration (for production deployment)
     USE_AWS_SECRETS: bool = False
     AWS_SECRET_NAME: str = "catalogai/production"
@@ -59,6 +63,7 @@ class Settings(BaseSettings):
                 'SUPABASE_SERVICE_ROLE_KEY', self.SUPABASE_SERVICE_ROLE_KEY
             )
             self.FLASK_SECRET_KEY = secrets.get('FLASK_SECRET_KEY', self.FLASK_SECRET_KEY)
+            self.GEMINI_API_KEY = secrets.get('GEMINI_API_KEY', self.GEMINI_API_KEY)
 
         except ClientError as e:
             print(f"Error loading AWS secrets: {e}")

@@ -34,37 +34,72 @@ def seed_organization():
 
 
 def seed_catalog_items(org_id: str, user_id: str):
-    """Create sample catalog items."""
+    """Create sample catalog items with realistic product data."""
     sample_items = [
         {
             'name': 'Dell Latitude 7430 Laptop',
             'description': '14" laptop with Intel Core i7, 16GB RAM, 512GB SSD. Perfect for business use.',
             'category': 'Electronics',
-            'metadata': {'brand': 'Dell', 'warranty': '3 years'}
+            'price': 1299.99,
+            'pricing_type': 'one_time',
+            'vendor': 'Dell',
+            'sku': 'LAT-7430-i7-16-512',
+            'product_url': 'https://www.dell.com/latitude-7430',
+            'metadata': {'warranty': '3 years', 'weight': '3.2 lbs'}
         },
         {
             'name': 'Logitech MX Master 3 Mouse',
             'description': 'Wireless ergonomic mouse with precision scrolling and customizable buttons.',
             'category': 'Electronics',
-            'metadata': {'brand': 'Logitech', 'wireless': True}
+            'price': 99.99,
+            'pricing_type': 'one_time',
+            'vendor': 'Logitech',
+            'sku': 'MX-MASTER-3',
+            'product_url': 'https://www.logitech.com/mx-master-3',
+            'metadata': {'wireless': True, 'battery_life': '70 days'}
         },
         {
             'name': 'Herman Miller Aeron Chair',
             'description': 'Ergonomic office chair with adjustable lumbar support and breathable mesh.',
             'category': 'Furniture',
-            'metadata': {'brand': 'Herman Miller', 'warranty': '12 years'}
+            'price': 1395.00,
+            'pricing_type': 'one_time',
+            'vendor': 'Herman Miller',
+            'sku': 'AERON-SIZE-B',
+            'product_url': 'https://www.hermanmiller.com/aeron',
+            'metadata': {'warranty': '12 years', 'size': 'B (Medium)'}
         },
         {
             'name': 'Printer Paper (Ream)',
             'description': 'Standard 8.5x11 white paper, 500 sheets per ream.',
             'category': 'Office Supplies',
-            'metadata': {'quantity': 500, 'size': '8.5x11'}
+            'price': 7.99,
+            'pricing_type': 'one_time',
+            'vendor': 'Staples',
+            'sku': 'PAPER-8.5X11-500',
+            'metadata': {'quantity': 500, 'brightness': '92'}
         },
         {
-            'name': 'AWS Cloud Services',
-            'description': 'Cloud computing platform for hosting and infrastructure.',
+            'name': 'AWS EC2 t3.medium Instance',
+            'description': 'Cloud compute instance with 2 vCPUs, 4GB RAM. Pay-as-you-go pricing.',
             'category': 'Services',
-            'metadata': {'provider': 'Amazon', 'type': 'cloud'}
+            'price': 0.0416,
+            'pricing_type': 'usage_based',
+            'vendor': 'Amazon Web Services',
+            'sku': 'EC2-T3-MEDIUM-US-EAST',
+            'product_url': 'https://aws.amazon.com/ec2/instance-types/t3',
+            'metadata': {'region': 'us-east-1', 'unit': 'per hour'}
+        },
+        {
+            'name': 'Microsoft 365 Business Standard',
+            'description': 'Office apps, cloud storage, email, and collaboration tools.',
+            'category': 'Services',
+            'price': 12.50,
+            'pricing_type': 'monthly',
+            'vendor': 'Microsoft',
+            'sku': 'M365-BUS-STD',
+            'product_url': 'https://www.microsoft.com/microsoft-365/business',
+            'metadata': {'storage': '1TB per user', 'includes': 'Teams, Exchange, SharePoint'}
         }
     ]
 
@@ -75,8 +110,13 @@ def seed_catalog_items(org_id: str, user_id: str):
                 name=item_data['name'],
                 description=item_data['description'],
                 category=item_data['category'],
-                metadata=item_data['metadata'],
-                created_by=user_id
+                created_by=user_id,
+                price=item_data.get('price'),
+                pricing_type=item_data.get('pricing_type'),
+                vendor=item_data.get('vendor'),
+                sku=item_data.get('sku'),
+                product_url=item_data.get('product_url'),
+                metadata=item_data.get('metadata')
             )
             print(f"✅ Created catalog item: {item['name']}")
         except Exception as e:

@@ -10,9 +10,10 @@ bp = Blueprint('proposals', __name__)
 
 @bp.route('/proposals', methods=['POST'])
 @require_auth
+@require_role(['reviewer', 'admin'])
 def create_proposal():
     """
-    Create a new proposal for catalog changes.
+    Create a new proposal for catalog changes (reviewer/admin only).
     POST /api/proposals
     Body: {
         "proposal_type": "ADD_ITEM" | "REPLACE_ITEM" | "DEPRECATE_ITEM",
@@ -20,8 +21,13 @@ def create_proposal():
         "item_description": "...",
         "item_category": "...",
         "item_metadata": {},
-        "replacing_item_id": "...",
-        "request_id": "..."
+        "item_price": 99.99,  // Optional
+        "item_pricing_type": "one_time | monthly | yearly | usage_based",  // Optional
+        "item_product_url": "https://...",  // Optional
+        "item_vendor": "...",  // Optional
+        "item_sku": "...",  // Optional
+        "replacing_item_id": "...",  // For REPLACE_ITEM and DEPRECATE_ITEM
+        "request_id": "..."  // Optional link to originating request
     }
     """
     data = request.get_json()
@@ -37,6 +43,11 @@ def create_proposal():
             item_description=data.get('item_description'),
             item_category=data.get('item_category'),
             item_metadata=data.get('item_metadata'),
+            item_price=data.get('item_price'),
+            item_pricing_type=data.get('item_pricing_type'),
+            item_product_url=data.get('item_product_url'),
+            item_vendor=data.get('item_vendor'),
+            item_sku=data.get('item_sku'),
             replacing_item_id=data.get('replacing_item_id'),
             request_id=data.get('request_id')
         )
@@ -75,8 +86,6 @@ def get_proposal(proposal_id):
     """
     try:
         proposal = proposal_service.get_proposal(proposal_id)
-        if not proposal:
-            return jsonify({"error": "Proposal not found"}), 404
 
         # Verify org ownership
         if proposal['org_id'] != g.org_id:

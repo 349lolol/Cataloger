@@ -3,7 +3,7 @@ Admin API endpoints for audit logs and system management.
 """
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
-from app.services import audit_service
+from app.services import audit_service, catalog_service
 
 bp = Blueprint('admin', __name__)
 
@@ -30,5 +30,41 @@ def get_audit_log():
             resource_id=resource_id
         )
         return jsonify({"events": events}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@bp.route('/admin/embeddings/check', methods=['POST'])
+@require_auth
+@require_role(['admin'])
+def check_and_repair_embeddings():
+    """
+    Check for catalog items missing embeddings and optionally repair them.
+
+    POST /api/admin/embeddings/check
+
+    This endpoint:
+    1. Finds all catalog items without embeddings
+    2. Automatically regenerates missing embeddings
+    3. Returns a report of what was found and fixed
+
+    Response:
+    {
+        "total_items": 150,
+        "items_with_embeddings": 145,
+        "items_without_embeddings": 5,
+        "repaired": 5,
+        "failed": 0,
+        "failed_items": []
+    }
+
+    Use this:
+    - As a health check after migrations
+    - To fix search issues
+    - As periodic maintenance
+    """
+    try:
+        result = catalog_service.check_and_repair_embeddings(g.org_id)
+        return jsonify(result), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500

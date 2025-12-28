@@ -69,8 +69,6 @@ def get_request(request_id):
     """
     try:
         req = request_service.get_request(request_id)
-        if not req:
-            return jsonify({"error": "Request not found"}), 404
 
         # Verify org ownership
         if req['org_id'] != g.org_id:
@@ -87,11 +85,41 @@ def get_request(request_id):
 def review_request(request_id):
     """
     Approve or reject a request (reviewer/admin only).
+
     POST /api/requests/:id/review
+
     Body: {
         "status": "approved" | "rejected",
-        "review_notes": "..."
+        "review_notes": "...",  // Optional
+
+        // OPTIONAL: Auto-create proposal when approving
+        // Use this to streamline the workflow: approve request + create proposal in one step
+        // If omitted, the request is simply marked approved (useful when item already exists)
+        "create_proposal": {
+            "proposal_type": "ADD_ITEM" | "REPLACE_ITEM" | "DEPRECATE_ITEM",
+            "item_name": "...",
+            "item_description": "...",
+            "item_category": "...",
+            "item_metadata": {},
+            "item_price": 99.99,
+            "item_pricing_type": "one_time | monthly | yearly | usage_based",
+            "item_product_url": "https://...",
+            "item_vendor": "...",
+            "item_sku": "...",
+            "replacing_item_id": "..."  // For REPLACE/DEPRECATE only
+        }
     }
+
+    Response (if create_proposal provided):
+    {
+        ...request fields...,
+        "proposal": {...}  // Auto-created proposal linked to this request
+    }
+
+    Workflow Options:
+    1. Approve WITHOUT proposal: Request marked approved, no further action
+    2. Approve WITH proposal: Request marked approved + proposal auto-created
+    3. Reject: Request marked rejected (create_proposal ignored)
     """
     data = request.get_json()
     if not data or 'status' not in data:
@@ -105,7 +133,8 @@ def review_request(request_id):
             request_id=request_id,
             reviewed_by=g.user_id,
             status=data['status'],
-            review_notes=data.get('review_notes')
+            review_notes=data.get('review_notes'),
+            create_proposal=data.get('create_proposal')
         )
         return jsonify(req), 200
     except Exception as e:
