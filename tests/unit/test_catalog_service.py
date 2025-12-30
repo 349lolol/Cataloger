@@ -58,48 +58,39 @@ class TestCatalogService:
         assert result == {'id': 'item-123', 'name': 'Test Item'}
 
     @patch('app.services.catalog_service.get_supabase_client')
-    def test_get_item_returns_none_when_not_found(self, mock_supabase):
-        """Test get_item returns None when item not found."""
-        # Setup mock to return None
-        mock_single = Mock()
-        mock_execute = Mock()
-        mock_execute.data = None
-        mock_single.execute.return_value = mock_execute
+    def test_get_item_raises_exception_when_not_found(self, mock_supabase):
+        """Test get_item raises exception when item not found."""
+        # Setup mock to return None (item not found)
+        mock_response = Mock()
+        mock_response.data = None
 
-        mock_eq = Mock()
-        mock_eq.single.return_value = mock_single
+        # Create a mock query that supports chaining
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.single.return_value = mock_query
+        mock_query.execute.return_value = mock_response
 
-        mock_select = Mock()
-        mock_select.eq.return_value = mock_eq
+        mock_supabase.return_value.table.return_value.select.return_value = mock_query
 
-        mock_supabase.return_value.table.return_value.select.return_value = mock_select
-
-        # Call function
-        result = catalog_service.get_item("nonexistent-item")
-
-        # Assertions
-        assert result is None
+        # Call function and expect exception
+        with pytest.raises(Exception, match="Catalog item not found"):
+            catalog_service.get_item("nonexistent-item")
 
     @patch('app.services.catalog_service.get_supabase_client')
     def test_list_items_with_status_filter(self, mock_supabase):
         """Test list_items with status filter."""
         # Setup mock
-        mock_execute = Mock()
-        mock_execute.data = [{'id': 'item-1', 'status': 'active'}]
+        mock_response = Mock()
+        mock_response.data = [{'id': 'item-1', 'status': 'active'}]
 
-        mock_limit = Mock()
-        mock_limit.execute.return_value = mock_execute
+        # Create a mock query that supports chaining
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.order.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.execute.return_value = mock_response
 
-        mock_eq = Mock()
-        mock_eq.limit.return_value = mock_limit
-
-        mock_order = Mock()
-        mock_order.eq.return_value = mock_eq
-
-        mock_select = Mock()
-        mock_select.eq.return_value.order.return_value = mock_order
-
-        mock_supabase.return_value.table.return_value.select.return_value = mock_select
+        mock_supabase.return_value.table.return_value.select.return_value = mock_query
 
         # Call function
         result = catalog_service.list_items("org-123", status="active", limit=50)

@@ -50,24 +50,31 @@ Required environment variables:
 - `SUPABASE_KEY`: Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key
 - `FLASK_SECRET_KEY`: Random secret for session management
+- `GEMINI_API_KEY`: Google Gemini API key for product enrichment
 
 ### 3. Set Up Database
 
 1. Create a Supabase project at https://supabase.com
-2. Run migrations in Supabase SQL Editor:
+2. Run migrations in Supabase SQL Editor (in order):
    - Execute `supabase/migrations/00001_initial_schema.sql`
    - Execute `supabase/migrations/00002_rls_policies.sql`
    - Execute `supabase/migrations/00003_pgvector_setup.sql`
+   - Execute `supabase/migrations/00004_add_product_fields.sql`
+   - Execute `supabase/migrations/00005_fix_proposal_rls.sql`
 
-3. Create a test user in Supabase Auth dashboard
-
-### 4. Seed Data (Optional)
+### 4. Seed Data
 
 ```bash
 python scripts/seed_data.py
 ```
 
-Follow the prompts to create a test organization and sample catalog items.
+This creates:
+- 1 organization ("Acme Corporation")
+- 10 test users (3 admins, 3 reviewers, 4 requesters)
+- 30 catalog items (20 hardware + 10 SaaS)
+- Sample requests
+
+**Save the credentials** printed by the script - you'll need them for MCP configuration.
 
 ### 5. Run Development Server
 
@@ -146,11 +153,26 @@ eb create catalogai-prod --elb-type application
 eb deploy
 ```
 
-## MCP Integration (Part C)
+## MCP Integration
 
-The MCP (Model Context Protocol) integration allows Claude Desktop and other AI assistants to interact with the catalog system.
+The MCP (Model Context Protocol) server provides **17 direct tools** for agentic procurement workflows through Claude Desktop.
 
-See [catalogai_mcp/README.md](catalogai_mcp/README.md) for setup instructions.
+**Features**:
+- Semantic catalog search with vector embeddings
+- Complete procurement request workflow
+- Proposal creation and approval
+- AI product enrichment via Gemini 3.0
+- Audit logging and system maintenance
+
+**Setup**:
+```bash
+cd catalogai_mcp
+pip install -e .
+```
+
+Configure Claude Desktop with your Supabase credentials and user account from the seeding script.
+
+See [catalogai_mcp/README.md](catalogai_mcp/README.md) for complete setup and usage instructions.
 
 ## Project Structure
 

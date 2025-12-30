@@ -1,72 +1,567 @@
 """
-MCP Server for CatalogAI with code execution capability.
+MCP Server for CatalogAI - Agentic Procurement Interface.
+
+Provides direct tools for catalog operations, procurement workflows,
+and analytics. Authenticates on startup using Supabase credentials.
 """
+import os
+import sys
+import httpx
+from typing import Optional, Dict, Any, List
 from mcp.server.fastmcp import FastMCP
-from code_executor import CodeExecutor
 
-mcp = FastMCP("catalogai-code-execution")
-executor = CodeExecutor()
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# MCP server instance
+mcp = FastMCP("catalogai")
+
+# Global state for authentication
+_auth_state = {
+    "access_token": None,
+    "user_id": None,
+    "org_id": None,
+    "user_role": None,
+    "api_url": None
+}
 
 
-@mcp.tool()
-async def execute_code(code: str, user_context: dict) -> dict:
+def authenticate():
     """
-    Execute Python code with catalogai SDK.
+    Authenticate user on MCP server startup.
 
-    This allows Claude to write Python code that interacts with your catalog system,
-    process data locally, and return compact results.
+    Reads credentials from environment variables:
+    - SUPABASE_URL: Supabase project URL
+    - USER_EMAIL: User's email
+    - USER_PASSWORD: User's password
+    - API_URL: CatalogAI API base URL (default: http://localhost:5000)
+    """
+    supabase_url = os.getenv('SUPABASE_URL')
+    user_email = os.getenv('USER_EMAIL')
+    user_password = os.getenv('USER_PASSWORD')
+    api_url = os.getenv('API_URL', 'http://localhost:5000')
 
-    Args:
-        code: Python code to execute (has access to catalogai SDK)
-        user_context: User auth token and org info
-
-    Returns:
-        Execution result with output
-
-    Example:
-        ```python
-        import catalogai
-
-        client = catalogai.CatalogAIClient(
-            base_url=os.getenv("CATALOGAI_API_URL"),
-            auth_token=os.getenv("CATALOGAI_AUTH_TOKEN")
+    if not all([supabase_url, user_email, user_password]):
+        raise ValueError(
+            "Missing required environment variables: "
+            "SUPABASE_URL, USER_EMAIL, USER_PASSWORD"
         )
 
-        # Search for laptops
-        results = client.catalog.search(query="laptop", limit=5)
-        print(f"Found {len(results)} laptops")
-        ```
-    """
-    result = executor.execute(code, {
-        "api_url": user_context.get("api_url", "http://localhost:5000"),
-        "auth_token": user_context["auth_token"]
-    })
-    return result
+    # Authenticate with Supabase
+    auth_url = f"{supabase_url}/auth/v1/token?grant_type=password"
 
+    try:
+        response = httpx.post(
+            auth_url,
+            json={"email": user_email, "password": user_password},
+            headers={"apikey": os.getenv('SUPABASE_KEY')},
+            timeout=10.0
+        )
+        response.raise_for_status()
+
+        data = response.json()
+        access_token = data.get('access_token')
+        user = data.get('user', {})
+
+        if not access_token:
+            raise ValueError("No access token in response")
+
+        # Store auth state
+        _auth_state['access_token'] = access_token
+        _auth_state['user_id'] = user.get('id')
+        _auth_state['api_url'] = api_url
+
+        # Get user's org and role from API
+        user_info = _api_call('GET', '/api/auth/verify')
+        if user_info:
+            _auth_state['org_id'] = user_info.get('org_id')
+            _auth_state['user_role'] = user_info.get('role')
+
+        print(f"✅ Authenticated as {user_email}")
+        print(f"   User ID: {_auth_state['user_id']}")
+        print(f"   Org ID: {_auth_state['org_id']}")
+        print(f"   Role: {_auth_state['user_role']}")
+
+    except Exception as e:
+        raise RuntimeError(f"Authentication failed: {str(e)}")
+
+
+def _api_call(method: str, endpoint: str, **kwargs) -> Optional[Dict[str, Any]]:
+    """
+    Make authenticated API call to CatalogAI backend.
+
+    Args:
+        method: HTTP method (GET, POST, etc.)
+        endpoint: API endpoint path
+        **kwargs: Additional arguments for httpx request
+
+    Returns:
+        Response JSON data or None on error
+    """
+    if not _auth_state['access_token']:
+        raise RuntimeError("Not authenticated. Call authenticate() first.")
+
+    url = f"{_auth_state['api_url']}{endpoint}"
+    headers = {
+        'Authorization': f"Bearer {_auth_state['access_token']}",
+        'Content-Type': 'application/json'
+    }
+
+    try:
+        response = httpx.request(
+            method,
+            url,
+            headers=headers,
+            timeout=30.0,
+            **kwargs
+        )
+        response.raise_for_status()
+        return response.json()
+
+    except httpx.HTTPStatusError as e:
+        error_msg = f"API Error {e.response.status_code}: {e.response.text}"
+        return {"error": error_msg}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ============================================================================
+# CATALOG TOOLS
+# ============================================================================
 
 @mcp.tool()
-async def search_catalog(query: str, threshold: float = 0.3, limit: int = 10) -> list:
+def search_catalog(query: str, limit: int = 10, threshold: float = 0.3) -> Dict[str, Any]:
     """
     Search catalog items using semantic similarity.
 
-    This is a simple wrapper tool for quick searches without code execution.
+    Uses vector embeddings to find products matching the natural language query.
 
     Args:
-        query: Natural language search query
-        threshold: Minimum similarity score (0-1)
-        limit: Maximum number of results
+        query: Natural language search query (e.g., "laptop for video editing")
+        limit: Maximum number of results (default: 10)
+        threshold: Minimum similarity score 0-1 (default: 0.3)
 
     Returns:
         List of matching catalog items with similarity scores
-    """
-    # This would use a direct API call
-    # For now, we'll note that this should be implemented
-    return {"error": "Use execute_code for catalog operations"}
 
+    Example:
+        search_catalog("ergonomic office chair", limit=5)
+    """
+    return _api_call(
+        'GET',
+        '/api/catalog/search',
+        params={'q': query, 'limit': limit, 'threshold': threshold}
+    )
+
+
+@mcp.tool()
+def get_catalog_item(item_id: str) -> Dict[str, Any]:
+    """
+    Get detailed information about a catalog item.
+
+    Args:
+        item_id: Catalog item UUID
+
+    Returns:
+        Full catalog item details including price, vendor, specs, etc.
+    """
+    return _api_call('GET', f'/api/catalog/{item_id}')
+
+
+@mcp.tool()
+def list_catalog(limit: int = 50, category: Optional[str] = None) -> Dict[str, Any]:
+    """
+    List catalog items with optional filtering.
+
+    Args:
+        limit: Maximum number of items to return (default: 50)
+        category: Filter by category (optional)
+
+    Returns:
+        List of catalog items
+    """
+    params = {'limit': limit}
+    if category:
+        params['category'] = category
+
+    return _api_call('GET', '/api/catalog', params=params)
+
+
+# ============================================================================
+# REQUEST TOOLS
+# ============================================================================
+
+@mcp.tool()
+def create_request(
+    product_name: str,
+    justification: str,
+    use_ai_enrichment: bool = True
+) -> Dict[str, Any]:
+    """
+    Create a new procurement request.
+
+    Args:
+        product_name: Name/description of product needed
+        justification: Business justification for the request
+        use_ai_enrichment: Use Gemini AI to enrich product details (default: True)
+
+    Returns:
+        Created request with ID
+
+    Example:
+        create_request(
+            product_name="MacBook Pro 16 inch M3 Max",
+            justification="Need for video editing team",
+            use_ai_enrichment=True
+        )
+    """
+    return _api_call(
+        'POST',
+        '/api/catalog/request-new-item',
+        json={
+            'product_name': product_name,
+            'justification': justification,
+            'use_ai_enrichment': use_ai_enrichment
+        }
+    )
+
+
+@mcp.tool()
+def list_requests(
+    status: Optional[str] = None,
+    limit: int = 50
+) -> Dict[str, Any]:
+    """
+    List procurement requests.
+
+    Args:
+        status: Filter by status (pending, approved, rejected) - optional
+        limit: Maximum number of results (default: 50)
+
+    Returns:
+        List of requests
+    """
+    params = {'limit': limit}
+    if status:
+        params['status'] = status
+
+    return _api_call('GET', '/api/requests', params=params)
+
+
+@mcp.tool()
+def get_request(request_id: str) -> Dict[str, Any]:
+    """
+    Get details of a specific request.
+
+    Args:
+        request_id: Request UUID
+
+    Returns:
+        Full request details
+    """
+    return _api_call('GET', f'/api/requests/{request_id}')
+
+
+@mcp.tool()
+def approve_request(
+    request_id: str,
+    review_notes: Optional[str] = None,
+    create_proposal: bool = False,
+    proposal_data: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Approve a procurement request (reviewer/admin only).
+
+    Args:
+        request_id: Request UUID to approve
+        review_notes: Optional notes about the approval
+        create_proposal: Auto-create proposal after approval (default: False)
+        proposal_data: Proposal details if create_proposal=True
+
+    Returns:
+        Updated request (and proposal if created)
+
+    Example:
+        approve_request(
+            request_id="abc-123",
+            review_notes="Approved for Q1 budget",
+            create_proposal=True,
+            proposal_data={
+                "proposal_type": "ADD_ITEM",
+                "item_name": "MacBook Pro 16 M3 Max",
+                "item_description": "...",
+                "item_category": "Computers",
+                "item_price": 3499.00,
+                "item_pricing_type": "one_time"
+            }
+        )
+    """
+    payload = {
+        'status': 'approved',
+        'review_notes': review_notes
+    }
+
+    if create_proposal and proposal_data:
+        payload['create_proposal'] = proposal_data
+
+    return _api_call('POST', f'/api/requests/{request_id}/review', json=payload)
+
+
+@mcp.tool()
+def reject_request(request_id: str, review_notes: str) -> Dict[str, Any]:
+    """
+    Reject a procurement request (reviewer/admin only).
+
+    Args:
+        request_id: Request UUID to reject
+        review_notes: Required notes explaining rejection
+
+    Returns:
+        Updated request
+    """
+    return _api_call(
+        'POST',
+        f'/api/requests/{request_id}/review',
+        json={'status': 'rejected', 'review_notes': review_notes}
+    )
+
+
+# ============================================================================
+# PROPOSAL TOOLS
+# ============================================================================
+
+@mcp.tool()
+def create_proposal(
+    proposal_type: str,
+    item_name: str,
+    item_description: str,
+    item_category: str,
+    item_price: Optional[float] = None,
+    item_pricing_type: Optional[str] = None,
+    item_vendor: Optional[str] = None,
+    item_sku: Optional[str] = None,
+    item_product_url: Optional[str] = None,
+    item_metadata: Optional[Dict[str, Any]] = None,
+    replacing_item_id: Optional[str] = None,
+    request_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Create a catalog change proposal (reviewer/admin only).
+
+    Args:
+        proposal_type: Type - "ADD_ITEM", "REPLACE_ITEM", or "DEPRECATE_ITEM"
+        item_name: Product name
+        item_description: Product description
+        item_category: Product category
+        item_price: Price in USD (optional)
+        item_pricing_type: "one_time", "monthly", "yearly", or "usage_based" (optional)
+        item_vendor: Vendor name (optional)
+        item_sku: SKU or product code (optional)
+        item_product_url: Product URL (optional)
+        item_metadata: Additional metadata dict (optional)
+        replacing_item_id: Item to replace (required for REPLACE_ITEM/DEPRECATE_ITEM)
+        request_id: Associated request ID (optional)
+
+    Returns:
+        Created proposal with ID
+    """
+    payload = {
+        'proposal_type': proposal_type,
+        'item_name': item_name,
+        'item_description': item_description,
+        'item_category': item_category,
+        'item_price': item_price,
+        'item_pricing_type': item_pricing_type,
+        'item_vendor': item_vendor,
+        'item_sku': item_sku,
+        'item_product_url': item_product_url,
+        'item_metadata': item_metadata or {},
+        'replacing_item_id': replacing_item_id,
+        'request_id': request_id
+    }
+
+    return _api_call('POST', '/api/proposals', json=payload)
+
+
+@mcp.tool()
+def list_proposals(status: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
+    """
+    List catalog change proposals.
+
+    Args:
+        status: Filter by status (pending, approved, rejected, merged) - optional
+        limit: Maximum number of results (default: 50)
+
+    Returns:
+        List of proposals
+    """
+    params = {'limit': limit}
+    if status:
+        params['status'] = status
+
+    return _api_call('GET', '/api/proposals', params=params)
+
+
+@mcp.tool()
+def get_proposal(proposal_id: str) -> Dict[str, Any]:
+    """
+    Get details of a specific proposal.
+
+    Args:
+        proposal_id: Proposal UUID
+
+    Returns:
+        Full proposal details
+    """
+    return _api_call('GET', f'/api/proposals/{proposal_id}')
+
+
+@mcp.tool()
+def approve_proposal(proposal_id: str, review_notes: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Approve a catalog change proposal (reviewer/admin only).
+
+    This automatically updates the catalog based on the proposal type.
+
+    Args:
+        proposal_id: Proposal UUID to approve
+        review_notes: Optional notes about the approval
+
+    Returns:
+        Updated proposal and created/updated catalog item
+    """
+    return _api_call(
+        'POST',
+        f'/api/proposals/{proposal_id}/approve',
+        json={'review_notes': review_notes}
+    )
+
+
+@mcp.tool()
+def reject_proposal(proposal_id: str, review_notes: str) -> Dict[str, Any]:
+    """
+    Reject a catalog change proposal (reviewer/admin only).
+
+    Args:
+        proposal_id: Proposal UUID to reject
+        review_notes: Required notes explaining rejection
+
+    Returns:
+        Updated proposal
+    """
+    return _api_call(
+        'POST',
+        f'/api/proposals/{proposal_id}/reject',
+        json={'review_notes': review_notes}
+    )
+
+
+# ============================================================================
+# AI ENRICHMENT TOOLS
+# ============================================================================
+
+@mcp.tool()
+def enrich_product(product_name: str, category: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Use Gemini AI to auto-populate product details from just a name.
+
+    Args:
+        product_name: Product name to enrich (e.g., "MacBook Pro 16 M3 Max")
+        category: Optional category hint for better accuracy
+
+    Returns:
+        Enriched product data with vendor, price, SKU, specs, etc.
+
+    Example:
+        enrich_product("Dell XPS 15 9530", category="Computers")
+    """
+    payload = {'product_name': product_name}
+    if category:
+        payload['category'] = category
+
+    return _api_call('POST', '/api/products/enrich', json=payload)
+
+
+@mcp.tool()
+def enrich_products_batch(product_names: List[str]) -> Dict[str, Any]:
+    """
+    Enrich multiple products in batch (max 20).
+
+    Args:
+        product_names: List of product names to enrich
+
+    Returns:
+        List of enriched product data
+    """
+    if len(product_names) > 20:
+        return {"error": "Maximum 20 products per batch"}
+
+    return _api_call(
+        'POST',
+        '/api/products/enrich-batch',
+        json={'product_names': product_names}
+    )
+
+
+# ============================================================================
+# ANALYTICS & ADMIN TOOLS
+# ============================================================================
+
+@mcp.tool()
+def get_audit_log(
+    limit: int = 100,
+    event_type: Optional[str] = None,
+    resource_type: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Get audit log events (admin only).
+
+    Args:
+        limit: Maximum number of events (default: 100)
+        event_type: Filter by event type (optional)
+        resource_type: Filter by resource type (optional)
+
+    Returns:
+        List of audit events
+    """
+    params = {'limit': limit}
+    if event_type:
+        params['event_type'] = event_type
+    if resource_type:
+        params['resource_type'] = resource_type
+
+    return _api_call('GET', '/api/admin/audit-log', params=params)
+
+
+@mcp.tool()
+def check_embeddings_health() -> Dict[str, Any]:
+    """
+    Check catalog embeddings health and repair if needed (admin only).
+
+    Returns:
+        Report of embedding status and any repairs performed
+    """
+    return _api_call('POST', '/api/admin/embeddings/check')
+
+
+# ============================================================================
+# SERVER INITIALIZATION
+# ============================================================================
 
 def main():
-    """Run MCP server."""
-    mcp.run(transport="stdio")
+    """Run MCP server with authentication."""
+    try:
+        # Authenticate on startup
+        print("🔐 Authenticating MCP server...")
+        authenticate()
+        print("✅ MCP server ready!\n")
+
+        # Run server
+        mcp.run(transport="stdio")
+
+    except Exception as e:
+        print(f"❌ Failed to start MCP server: {str(e)}")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

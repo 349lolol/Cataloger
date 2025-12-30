@@ -11,14 +11,6 @@ class TestRequestsAPI:
     """Test requests API endpoints."""
 
     @pytest.fixture
-    def app(self):
-        """Create Flask app for testing."""
-        with patch('app.extensions.SentenceTransformer'):
-            app = create_app()
-            app.config['TESTING'] = True
-            return app
-
-    @pytest.fixture
     def client(self, app):
         """Create test client."""
         return app.test_client()

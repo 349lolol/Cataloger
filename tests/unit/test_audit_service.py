@@ -94,11 +94,15 @@ class TestAuditService:
             {"id": "audit-2", "event_type": "catalog.item.created"}
         ]
 
+        # Create a mock query that supports chaining
         mock_query = Mock()
-        mock_eq_chain = Mock()
-        mock_eq_chain.order.return_value.limit.return_value.execute.return_value = mock_response
-        mock_query.eq.return_value = mock_eq_chain
-        mock_admin.table.return_value.select.return_value.eq.return_value = mock_query
+        # Each method in the chain returns self for fluent interface
+        mock_query.eq.return_value = mock_query
+        mock_query.order.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.execute.return_value = mock_response
+
+        mock_admin.table.return_value.select.return_value = mock_query
 
         # Get filtered logs
         result = audit_service.get_audit_log(
@@ -134,11 +138,15 @@ class TestAuditService:
             }
         ]
 
+        # Create a mock query that supports chaining
         mock_query = Mock()
-        mock_eq_chain = Mock()
-        mock_eq_chain.order.return_value.limit.return_value.execute.return_value = mock_response
-        mock_query.eq.return_value = mock_eq_chain
-        mock_admin.table.return_value.select.return_value.eq.return_value = mock_query
+        # Each method in the chain returns self for fluent interface
+        mock_query.eq.return_value = mock_query
+        mock_query.order.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.execute.return_value = mock_response
+
+        mock_admin.table.return_value.select.return_value = mock_query
 
         # Get resource logs
         result = audit_service.get_audit_log(

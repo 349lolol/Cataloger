@@ -22,13 +22,15 @@ class TestRequestsAPI:
         """Create test client."""
         return app.test_client()
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.requests.request_service')
-    def test_create_request_success(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_create_request_success(self, mock_service, mock_org_role, mock_get_user, client):
         """Test successful request creation."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "requester")
 
         mock_service.create_request.return_value = {
@@ -56,12 +58,14 @@ class TestRequestsAPI:
         assert data["id"] == "request-123"
         assert data["status"] == "pending"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
-    def test_create_request_missing_item_name(self, mock_org_role, mock_jwt, client):
+    def test_create_request_missing_item_name(self, mock_org_role, mock_get_user, client):
         """Test request creation fails without item name."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "requester")
 
         # Make request without item_name
@@ -79,13 +83,15 @@ class TestRequestsAPI:
         data = json.loads(response.data)
         assert "error" in data
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.requests.request_service')
-    def test_list_requests(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_list_requests(self, mock_service, mock_org_role, mock_get_user, client):
         """Test listing requests."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "requester")
 
         mock_service.list_requests.return_value = [
@@ -104,13 +110,15 @@ class TestRequestsAPI:
         data = json.loads(response.data)
         assert len(data) == 2
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.requests.request_service')
-    def test_get_request_by_id(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_get_request_by_id(self, mock_service, mock_org_role, mock_get_user, client):
         """Test getting a specific request."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "requester")
 
         mock_service.get_request.return_value = {
@@ -130,13 +138,15 @@ class TestRequestsAPI:
         data = json.loads(response.data)
         assert data["id"] == "request-123"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.requests.request_service')
-    def test_approve_request_as_admin(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_approve_request_as_admin(self, mock_service, mock_org_role, mock_get_user, client):
         """Test approving a request as admin."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "admin-123"}
+        user_mock = Mock()
+        user_mock.id = "admin-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "admin")
 
         mock_service.approve_request.return_value = {
@@ -158,13 +168,15 @@ class TestRequestsAPI:
         data = json.loads(response.data)
         assert data["status"] == "approved"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.requests.request_service')
-    def test_reject_request_as_reviewer(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_reject_request_as_reviewer(self, mock_service, mock_org_role, mock_get_user, client):
         """Test rejecting a request as reviewer."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "reviewer-123"}
+        user_mock = Mock()
+        user_mock.id = "reviewer-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.reject_request.return_value = {
@@ -186,12 +198,14 @@ class TestRequestsAPI:
         data = json.loads(response.data)
         assert data["status"] == "rejected"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
-    def test_approve_request_requires_admin_or_reviewer(self, mock_org_role, mock_jwt, client):
+    def test_approve_request_requires_admin_or_reviewer(self, mock_org_role, mock_get_user, client):
         """Test that only admin/reviewer can approve requests."""
         # Setup mocks - regular requester role
-        mock_jwt.return_value = {"sub": "user-123"}
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "requester")
 
         # Make request

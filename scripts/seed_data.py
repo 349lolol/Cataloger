@@ -1,10 +1,19 @@
 """
-Seed script to populate database with test data.
-Creates a test organization and sample catalog items.
+Automated seeding script for CatalogAI.
+
+Creates a test organization with:
+- 10 test users (3 admins, 3 reviewers, 4 requesters)
+- 20 hardware products (laptops, accessories, furniture, office supplies)
+- 10 SaaS services (software subscriptions)
+- Sample requests and proposals
+
+Fully automated - no manual steps required.
 """
 import os
 import sys
 from dotenv import load_dotenv
+import secrets
+import string
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -16,69 +25,220 @@ from app.services.catalog_service import create_item
 from app.services.product_enrichment_service import enrich_product
 
 
-def seed_organization():
-    """Create a test organization."""
+# Test organization
+ORG_NAME = "Acme Corporation"
+
+# Test users to create (email, role, full_name)
+TEST_USERS = [
+    # Admins
+    ("admin1@acmecorp.test", "admin", "Alice Admin"),
+    ("admin2@acmecorp.test", "admin", "Bob Administrator"),
+    ("admin3@acmecorp.test", "admin", "Carol Chief"),
+    # Reviewers
+    ("reviewer1@acmecorp.test", "reviewer", "Diana Reviewer"),
+    ("reviewer2@acmecorp.test", "reviewer", "Eve Evaluator"),
+    ("reviewer3@acmecorp.test", "reviewer", "Frank Finance"),
+    # Requesters
+    ("requester1@acmecorp.test", "requester", "Grace General"),
+    ("requester2@acmecorp.test", "requester", "Henry HR"),
+    ("requester3@acmecorp.test", "requester", "Iris IT"),
+    ("requester4@acmecorp.test", "requester", "Jack Junior"),
+]
+
+# Hardware products (20 items)
+HARDWARE_PRODUCTS = [
+    # Laptops & Computers
+    "MacBook Pro 16 inch M3 Max",
+    "Dell XPS 15 9530",
+    "Lenovo ThinkPad X1 Carbon Gen 11",
+    "HP EliteBook 840 G10",
+    # Peripherals
+    "Logitech MX Master 3S",
+    "Apple Magic Keyboard",
+    "Dell UltraSharp U2723DE 27 inch Monitor",
+    "Jabra Evolve2 65 Headset",
+    # Office Furniture
+    "Herman Miller Aeron Chair Size B",
+    "Steelcase Leap V2 Chair",
+    "UPLIFT V2 Standing Desk 60x30",
+    "Fully Jarvis Bamboo Standing Desk",
+    # Office Equipment
+    "HP OfficeJet Pro 9015e Printer",
+    "Brother HL-L2395DW Laser Printer",
+    "Fellowes Powershred 99Ci Shredder",
+    # Office Supplies
+    "Staples Copy Paper 8.5x11 10 Ream Case",
+    "Sharpie Permanent Markers Assorted 12 Pack",
+    "Post-it Notes Super Sticky 3x3 24 Pads",
+    # Storage & Accessories
+    "Samsung T7 Portable SSD 1TB",
+    "WD My Book Desktop Hard Drive 8TB",
+]
+
+# SaaS Services (10 items)
+SAAS_SERVICES = [
+    "Slack Business Plus",
+    "GitHub Enterprise Cloud",
+    "Zoom Workspace Pro",
+    "Notion Team Plan",
+    "Figma Professional",
+    "Jira Software Premium",
+    "Confluence Premium",
+    "Google Workspace Business Standard",
+    "Microsoft 365 Business Premium",
+    "Salesforce Professional Edition",
+]
+
+
+def generate_password():
+    """Generate a secure random password."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()"
+    return ''.join(secrets.choice(alphabet) for _ in range(16))
+
+
+def create_test_user(email, password, full_name):
+    """
+    Create a test user via Supabase Auth API.
+
+    Returns user_id on success, None on failure.
+    """
     supabase = get_supabase_admin()
 
-    # Create test org
+    try:
+        # Create user via Supabase Auth Admin API
+        response = supabase.auth.admin.create_user({
+            "email": email,
+            "password": password,
+            "email_confirm": True,  # Auto-confirm email
+            "user_metadata": {
+                "full_name": full_name
+            }
+        })
+
+        if response.user:
+            return response.user.id
+        else:
+            print(f"   ❌ Failed to create user {email}: No user returned")
+            return None
+
+    except Exception as e:
+        print(f"   ❌ Failed to create user {email}: {str(e)}")
+        return None
+
+
+def seed_organization():
+    """Create test organization."""
+    supabase = get_supabase_admin()
+
+    print("\n📦 Creating Organization...")
+
+    # Check if org already exists
+    existing = supabase.table('orgs').select('*').eq('name', ORG_NAME).execute()
+    if existing.data:
+        print(f"   ⚠️  Organization '{ORG_NAME}' already exists (ID: {existing.data[0]['id']})")
+        return existing.data[0]
+
+    # Create new org
     org_response = supabase.table('orgs').insert({
-        'name': 'Acme Corp (Test Organization)'
+        'name': ORG_NAME
     }).execute()
 
     if not org_response.data:
-        print("Failed to create organization")
-        return None
+        raise Exception("Failed to create organization")
 
     org = org_response.data[0]
-    print(f"✅ Created organization: {org['name']} (ID: {org['id']})")
+    print(f"   ✅ Created: {org['name']} (ID: {org['id']})")
     return org
 
 
-def seed_catalog_items(org_id: str, user_id: str, use_ai: bool = True):
+def seed_users(org_id):
     """
-    Create sample catalog items using AI enrichment pipeline.
-    
+    Create test users and add them to the organization.
+
+    Returns dict mapping email -> user_id
+    """
+    supabase = get_supabase_admin()
+
+    print(f"\n👥 Creating {len(TEST_USERS)} Test Users...")
+
+    user_map = {}
+
+    for email, role, full_name in TEST_USERS:
+        # Generate secure password
+        password = generate_password()
+
+        print(f"\n   Creating: {full_name} ({email}) - {role.upper()}")
+
+        # Create user via Auth API
+        user_id = create_test_user(email, password, full_name)
+        if not user_id:
+            continue
+
+        user_map[email] = user_id
+        print(f"   ✅ User created (ID: {user_id})")
+
+        # Add to organization
+        try:
+            supabase.table('org_memberships').insert({
+                'org_id': org_id,
+                'user_id': user_id,
+                'role': role
+            }).execute()
+            print(f"   ✅ Added to org with role: {role}")
+            print(f"   📧 Email: {email}")
+            print(f"   🔑 Password: {password}")
+        except Exception as e:
+            print(f"   ❌ Failed to add to org: {str(e)}")
+
+    print(f"\n✅ Created {len(user_map)}/{len(TEST_USERS)} users successfully")
+    return user_map
+
+
+def seed_catalog_items(org_id, admin_user_id, use_ai=True):
+    """
+    Seed catalog with hardware products and SaaS services.
+
     Args:
         org_id: Organization ID
-        user_id: User ID for created_by
-        use_ai: If True, use Gemini API to enrich products (default: True)
+        admin_user_id: Admin user ID for created_by
+        use_ai: Whether to use Gemini AI enrichment (default: True)
     """
-    # Simple product names - AI will enrich with all details
-    product_names = [
-        'MacBook Pro 16 inch M3 Max',
-        'Dell XPS 15 9530',
-        'Logitech MX Master 3S',
-        'Herman Miller Aeron Chair Size B',
-        'HP OfficeJet Pro 9015e',
-        'Staples Copy Paper 8.5x11',
-        'Slack Business Plus',
-        'GitHub Enterprise Cloud',
-        'AWS EC2 t3.medium us-east-1',
-        'Zoom Workspace Pro'
-    ]
+    all_products = HARDWARE_PRODUCTS + SAAS_SERVICES
+    total = len(all_products)
 
-    print(f"\n{'🤖 AI-Powered' if use_ai else '📝 Manual'} Catalog Seeding")
-    print(f"Creating {len(product_names)} catalog items...")
+    print(f"\n📦 Seeding {total} Catalog Items...")
+    print(f"   ├─ {len(HARDWARE_PRODUCTS)} Hardware Products")
+    print(f"   └─ {len(SAAS_SERVICES)} SaaS Services")
 
-    for product_name in product_names:
+    if use_ai:
+        print("\n🤖 AI Enrichment: ENABLED (using Gemini 3.0 Flash)")
+    else:
+        print("\n📝 AI Enrichment: DISABLED (manual data only)")
+
+    success_count = 0
+    fail_count = 0
+
+    for i, product_name in enumerate(all_products, 1):
         try:
+            print(f"\n[{i}/{total}] {product_name}")
+
             if use_ai:
-                print(f"\n🔍 Enriching: {product_name}")
-                
-                # Use Gemini to get full product details
+                # Use Gemini to enrich product
                 enriched = enrich_product(product_name=product_name)
-                
+
                 print(f"   ├─ Vendor: {enriched.get('vendor', 'N/A')}")
-                print(f"   ├─ Price: ${enriched.get('price', 0):.2f}")
+                print(f"   ├─ Category: {enriched.get('category', 'N/A')}")
+                print(f"   ├─ Price: ${enriched.get('price', 0):.2f}" if enriched.get('price') else "   ├─ Price: N/A")
+                print(f"   ├─ Type: {enriched.get('pricing_type', 'N/A')}")
                 print(f"   └─ Confidence: {enriched.get('confidence', 'unknown')}")
-                
-                # Create catalog item with enriched data
+
+                # Create catalog item with AI-enriched data
                 item = create_item(
                     org_id=org_id,
                     name=enriched.get('name', product_name),
                     description=enriched.get('description', ''),
-                    category=enriched.get('category', ''),
-                    created_by=user_id,
+                    category=enriched.get('category', 'Uncategorized'),
+                    created_by=admin_user_id,
                     price=enriched.get('price'),
                     pricing_type=enriched.get('pricing_type'),
                     vendor=enriched.get('vendor'),
@@ -87,71 +247,169 @@ def seed_catalog_items(org_id: str, user_id: str, use_ai: bool = True):
                     metadata={
                         **enriched.get('metadata', {}),
                         'ai_enriched': True,
-                        'ai_confidence': enriched.get('confidence', 'unknown')
+                        'ai_confidence': enriched.get('confidence', 'unknown'),
+                        'seeded_at': 'automated_seed_script'
                     }
                 )
-                print(f"✅ Created: {item['name']}")
-                
             else:
-                # Fallback: create with minimal data
+                # Create with minimal data
+                category = 'SaaS' if product_name in SAAS_SERVICES else 'Hardware'
                 item = create_item(
                     org_id=org_id,
                     name=product_name,
-                    description='',
-                    category='Uncategorized',
-                    created_by=user_id,
-                    metadata={'ai_enriched': False}
+                    description=f'Test item: {product_name}',
+                    category=category,
+                    created_by=admin_user_id,
+                    metadata={'ai_enriched': False, 'seeded_at': 'automated_seed_script'}
                 )
-                print(f"✅ Created: {item['name']} (minimal data)")
-                
+
+            print(f"   ✅ Created catalog item (ID: {item['id']})")
+            success_count += 1
+
         except Exception as e:
-            print(f"❌ Failed to create {product_name}: {e}")
+            print(f"   ❌ Failed: {str(e)}")
+            fail_count += 1
+
+    print(f"\n✅ Catalog Seeding Complete: {success_count} succeeded, {fail_count} failed")
+
+
+def seed_sample_requests(org_id, user_map):
+    """
+    Create sample requests from requester users.
+
+    Args:
+        org_id: Organization ID
+        user_map: Dict mapping email -> user_id
+    """
+    supabase = get_supabase_admin()
+
+    # Get requester user IDs
+    requesters = [
+        user_map.get(email)
+        for email, role, _ in TEST_USERS
+        if role == 'requester' and email in user_map
+    ]
+
+    if not requesters:
+        print("\n⚠️  No requester users found, skipping sample requests")
+        return
+
+    print(f"\n📋 Creating Sample Requests...")
+
+    sample_requests = [
+        {
+            'org_id': org_id,
+            'created_by': requesters[0],
+            'search_query': 'laptop for video editing',
+            'justification': 'Need a powerful laptop for our video production team',
+            'status': 'pending'
+        },
+        {
+            'org_id': org_id,
+            'created_by': requesters[1],
+            'search_query': 'project management software',
+            'justification': 'Current PM tools are insufficient for growing team',
+            'status': 'pending'
+        },
+        {
+            'org_id': org_id,
+            'created_by': requesters[2] if len(requesters) > 2 else requesters[0],
+            'search_query': 'ergonomic office chair',
+            'justification': 'Employee wellness initiative for remote workers',
+            'status': 'pending'
+        },
+    ]
+
+    created = 0
+    for req_data in sample_requests:
+        try:
+            response = supabase.table('requests').insert(req_data).execute()
+            if response.data:
+                print(f"   ✅ Created request: {req_data['search_query']}")
+                created += 1
+        except Exception as e:
+            print(f"   ❌ Failed to create request: {str(e)}")
+
+    print(f"\n✅ Created {created}/{len(sample_requests)} sample requests")
 
 
 def main():
-    """Main seed function."""
-    print("🌱 Seeding database with test data...")
+    """Main seeding function."""
+    print("=" * 70)
+    print("🌱 CatalogAI Automated Seeding Script")
+    print("=" * 70)
 
-    # Create organization
-    org = seed_organization()
-    if not org:
-        print("❌ Failed to create organization. Exiting.")
+    # Check for required environment variables
+    supabase_url = os.getenv('SUPABASE_URL')
+    supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+
+    if not supabase_url or not supabase_key:
+        print("\n❌ ERROR: Missing required environment variables")
+        print("   Required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY")
+        print("   Make sure .env file is configured correctly")
         return
 
-    # Note: In a real setup, you would create a test user via Supabase Auth
-    # For now, we'll use a placeholder user_id
-    # You should replace this with an actual user ID from Supabase Auth
-    print("\n⚠️  MANUAL STEP REQUIRED:")
-    print("1. Go to your Supabase dashboard")
-    print("2. Create a test user in Authentication")
-    print("3. Add them to org_memberships table:")
-    print(f"   INSERT INTO org_memberships (org_id, user_id, role) VALUES ('{org['id']}', '<USER_ID>', 'admin');")
-    print()
+    # Check for Gemini API key (optional, for AI enrichment)
+    gemini_key = os.getenv('GEMINI_API_KEY')
+    use_ai = bool(gemini_key)
 
-    # Ask if user wants to proceed with seeding catalog items
-    response = input("Do you have a user_id ready? (y/n): ")
-    if response.lower() == 'y':
-        user_id = input("Enter user_id: ").strip()
-        if user_id:
-            # Ask if user wants to use AI enrichment
-            ai_response = input("Use AI enrichment (requires GEMINI_API_KEY)? (y/n, default=y): ").strip().lower()
-            use_ai = ai_response != 'n'  # Default to True unless explicitly 'n'
-            
-            if use_ai:
-                gemini_key = os.getenv('GEMINI_API_KEY')
-                if not gemini_key:
-                    print("⚠️  Warning: GEMINI_API_KEY not found in environment")
-                    print("Falling back to manual seeding...")
-                    use_ai = False
-            
-            seed_catalog_items(org['id'], user_id, use_ai=use_ai)
-            print("\n✅ Database seeding complete!")
-            print(f"📋 Organization ID: {org['id']}")
-        else:
-            print("❌ No user_id provided. Skipping catalog items.")
-    else:
-        print("\n✅ Organization created. Complete the manual steps above, then run this script again with catalog seeding.")
-        print(f"📋 Organization ID: {org['id']}")
+    if not use_ai:
+        print("\n⚠️  GEMINI_API_KEY not found - AI enrichment will be disabled")
+        print("   Products will be created with minimal data")
+        response = input("\n   Continue without AI enrichment? (y/n): ")
+        if response.lower() != 'y':
+            print("\n❌ Aborted. Set GEMINI_API_KEY in .env to enable AI enrichment.")
+            return
+
+    try:
+        # 1. Create organization
+        org = seed_organization()
+
+        # 2. Create users and add to org
+        user_map = seed_users(org['id'])
+
+        if not user_map:
+            print("\n❌ No users created. Cannot proceed with seeding.")
+            return
+
+        # Get first admin user for catalog item creation
+        admin_user_id = next(
+            (uid for email, uid in user_map.items()
+             if any(e == email and r == 'admin' for e, r, _ in TEST_USERS)),
+            None
+        )
+
+        if not admin_user_id:
+            print("\n❌ No admin user found. Cannot create catalog items.")
+            return
+
+        # 3. Seed catalog items
+        seed_catalog_items(org['id'], admin_user_id, use_ai=use_ai)
+
+        # 4. Create sample requests
+        seed_sample_requests(org['id'], user_map)
+
+        # Summary
+        print("\n" + "=" * 70)
+        print("✅ SEEDING COMPLETE!")
+        print("=" * 70)
+        print(f"\n📋 Organization: {ORG_NAME}")
+        print(f"   ID: {org['id']}")
+        print(f"\n👥 Users Created: {len(user_map)}")
+        print(f"   - {sum(1 for _, r, _ in TEST_USERS if r == 'admin')} Admins")
+        print(f"   - {sum(1 for _, r, _ in TEST_USERS if r == 'reviewer')} Reviewers")
+        print(f"   - {sum(1 for _, r, _ in TEST_USERS if r == 'requester')} Requesters")
+        print(f"\n📦 Catalog Items: {len(HARDWARE_PRODUCTS) + len(SAAS_SERVICES)}")
+        print(f"   - {len(HARDWARE_PRODUCTS)} Hardware Products")
+        print(f"   - {len(SAAS_SERVICES)} SaaS Services")
+        print(f"\n🔐 User Credentials:")
+        print("   (See output above for email/password combinations)")
+        print("\n" + "=" * 70)
+
+    except Exception as e:
+        print(f"\n❌ SEEDING FAILED: {str(e)}")
+        import traceback
+        traceback.print_exc()
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth
 from app.services.product_enrichment_service import enrich_product, enrich_product_batch
 
-bp = Blueprint('products', __name__')
+bp = Blueprint('products', __name__)
 
 
 @bp.route('/products/enrich', methods=['POST'])

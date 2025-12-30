@@ -3,7 +3,15 @@ Pytest configuration and fixtures.
 """
 import pytest
 import os
-from unittest.mock import patch
+import sys
+from unittest.mock import patch, MagicMock
+
+# Mock external dependencies before any app imports
+sys.modules['supabase'] = MagicMock()
+sys.modules['sentence_transformers'] = MagicMock()
+sys.modules['google'] = MagicMock()
+sys.modules['google.generativeai'] = MagicMock()
+
 from app import create_app
 from app.config import get_settings
 
@@ -16,17 +24,16 @@ def setup_test_env():
     os.environ['SUPABASE_URL'] = 'https://test.supabase.co'
     os.environ['SUPABASE_KEY'] = 'test-anon-key'
     os.environ['SUPABASE_SERVICE_ROLE_KEY'] = 'test-service-role-key'
-    os.environ['JWT_SECRET'] = 'test-jwt-secret'
+    os.environ['GEMINI_API_KEY'] = 'test-gemini-key'
     yield
 
 
 @pytest.fixture
 def app():
     """Create Flask app for testing."""
-    with patch('app.extensions.SentenceTransformer'):
-        app = create_app()
-        app.config['TESTING'] = True
-        return app
+    app = create_app()
+    app.config['TESTING'] = True
+    return app
 
 
 @pytest.fixture

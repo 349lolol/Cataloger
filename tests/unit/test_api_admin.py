@@ -22,16 +22,18 @@ class TestAdminAPI:
         """Create test client."""
         return app.test_client()
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
-    def test_get_audit_logs_as_admin(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_get_audit_log_as_admin(self, mock_service, mock_org_role, mock_get_user, client):
         """Test getting audit logs as admin."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "admin-123"}
+        user_mock = Mock()
+        user_mock.id = "admin-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "admin")
 
-        mock_service.get_audit_logs.return_value = [
+        mock_service.get_audit_log.return_value = [
             {
                 "id": "audit-1",
                 "event_type": "CATALOG_ITEM_CREATED",
@@ -46,77 +48,83 @@ class TestAdminAPI:
 
         # Make request
         response = client.get(
-            '/api/admin/audit-logs',
+            '/api/admin/audit-log',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Assertions
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 2
-        assert data[0]["event_type"] == "CATALOG_ITEM_CREATED"
+        assert len(data["events"]) == 2
+        assert data["events"][0]["event_type"] == "CATALOG_ITEM_CREATED"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
-    def test_get_audit_logs_with_filters(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_get_audit_log_with_filters(self, mock_service, mock_org_role, mock_get_user, client):
         """Test getting audit logs with event type filter."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "admin-123"}
+        user_mock = Mock()
+        user_mock.id = "admin-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "admin")
 
-        mock_service.get_audit_logs.return_value = [
+        mock_service.get_audit_log.return_value = [
             {"id": "audit-1", "event_type": "CATALOG_ITEM_CREATED"},
             {"id": "audit-2", "event_type": "CATALOG_ITEM_CREATED"}
         ]
 
         # Make request with filter
         response = client.get(
-            '/api/admin/audit-logs?event_type=CATALOG_ITEM_CREATED&limit=50',
+            '/api/admin/audit-log?event_type=CATALOG_ITEM_CREATED&limit=50',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Assertions
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 2
+        assert len(data["events"]) == 2
 
         # Verify filter was passed to service
-        mock_service.get_audit_logs.assert_called_once_with(
+        mock_service.get_audit_log.assert_called_once_with(
             org_id="org-123",
+            limit=50,
             event_type="CATALOG_ITEM_CREATED",
             resource_type=None,
-            resource_id=None,
-            limit=50
+            resource_id=None
         )
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
-    def test_get_audit_logs_requires_admin(self, mock_org_role, mock_jwt, client):
+    def test_get_audit_log_requires_admin(self, mock_org_role, mock_get_user, client):
         """Test that only admins can access audit logs."""
         # Setup mocks - requester role
-        mock_jwt.return_value = {"sub": "user-123"}
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "requester")
 
         # Make request
         response = client.get(
-            '/api/admin/audit-logs',
+            '/api/admin/audit-log',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Should be forbidden
         assert response.status_code == 403
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
-    def test_get_audit_logs_for_resource(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_get_audit_log_for_resource(self, mock_service, mock_org_role, mock_get_user, client):
         """Test getting audit logs for a specific resource."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "admin-123"}
+        user_mock = Mock()
+        user_mock.id = "admin-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "admin")
 
-        mock_service.get_audit_logs.return_value = [
+        mock_service.get_audit_log.return_value = [
             {
                 "id": "audit-1",
                 "resource_type": "catalog_item",
@@ -133,64 +141,68 @@ class TestAdminAPI:
 
         # Make request with resource filters
         response = client.get(
-            '/api/admin/audit-logs?resource_type=catalog_item&resource_id=item-123',
+            '/api/admin/audit-log?resource_type=catalog_item&resource_id=item-123',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Assertions
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 2
-        assert all(log["resource_id"] == "item-123" for log in data)
+        assert len(data["events"]) == 2
+        assert all(log["resource_id"] == "item-123" for log in data["events"])
 
         # Verify filters were passed
-        mock_service.get_audit_logs.assert_called_once_with(
+        mock_service.get_audit_log.assert_called_once_with(
             org_id="org-123",
+            limit=100,
             event_type=None,
             resource_type="catalog_item",
-            resource_id="item-123",
-            limit=100
+            resource_id="item-123"
         )
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
-    def test_get_audit_logs_reviewer_forbidden(self, mock_org_role, mock_jwt, client):
+    def test_get_audit_log_reviewer_forbidden(self, mock_org_role, mock_get_user, client):
         """Test that reviewers cannot access audit logs."""
         # Setup mocks - reviewer role
-        mock_jwt.return_value = {"sub": "reviewer-123"}
+        user_mock = Mock()
+        user_mock.id = "reviewer-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "reviewer")
 
         # Make request
         response = client.get(
-            '/api/admin/audit-logs',
+            '/api/admin/audit-log',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Should be forbidden
         assert response.status_code == 403
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
-    def test_get_audit_logs_with_default_limit(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_get_audit_log_with_default_limit(self, mock_service, mock_org_role, mock_get_user, client):
         """Test that default limit is applied when not specified."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "admin-123"}
+        user_mock = Mock()
+        user_mock.id = "admin-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "admin")
 
-        mock_service.get_audit_logs.return_value = []
+        mock_service.get_audit_log.return_value = []
 
         # Make request without limit parameter
         response = client.get(
-            '/api/admin/audit-logs',
+            '/api/admin/audit-log',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Should use default limit of 100
-        mock_service.get_audit_logs.assert_called_once_with(
+        mock_service.get_audit_log.assert_called_once_with(
             org_id="org-123",
+            limit=100,
             event_type=None,
             resource_type=None,
-            resource_id=None,
-            limit=100
+            resource_id=None
         )

@@ -22,14 +22,16 @@ class TestProposalsAPI:
         """Create test client."""
         return app.test_client()
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_create_add_item_proposal(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_create_add_item_proposal(self, mock_service, mock_org_role, mock_get_user, client):
         """Test creating ADD_ITEM proposal."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
-        mock_org_role.return_value = ("org-123", "requester")
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
+        mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.create_proposal.return_value = {
             "id": "proposal-123",
@@ -56,14 +58,16 @@ class TestProposalsAPI:
         assert data["id"] == "proposal-123"
         assert data["proposal_type"] == "ADD_ITEM"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_create_replace_item_proposal(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_create_replace_item_proposal(self, mock_service, mock_org_role, mock_get_user, client):
         """Test creating REPLACE_ITEM proposal."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
-        mock_org_role.return_value = ("org-123", "requester")
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
+        mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.create_proposal.return_value = {
             "id": "proposal-124",
@@ -90,13 +94,15 @@ class TestProposalsAPI:
         data = json.loads(response.data)
         assert data["proposal_type"] == "REPLACE_ITEM"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
-    def test_create_proposal_missing_type(self, mock_org_role, mock_jwt, client):
+    def test_create_proposal_missing_type(self, mock_org_role, mock_get_user, client):
         """Test proposal creation fails without proposal_type."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
-        mock_org_role.return_value = ("org-123", "requester")
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
+        mock_org_role.return_value = ("org-123", "reviewer")
 
         # Make request without proposal_type
         response = client.post(
@@ -113,14 +119,16 @@ class TestProposalsAPI:
         data = json.loads(response.data)
         assert "error" in data
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_list_proposals(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_list_proposals(self, mock_service, mock_org_role, mock_get_user, client):
         """Test listing proposals."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
-        mock_org_role.return_value = ("org-123", "requester")
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
+        mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.list_proposals.return_value = [
             {"id": "proposal-1", "status": "open"},
@@ -136,16 +144,18 @@ class TestProposalsAPI:
         # Assertions
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 2
+        assert len(data["proposals"]) == 2
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_list_proposals_with_status_filter(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_list_proposals_with_status_filter(self, mock_service, mock_org_role, mock_get_user, client):
         """Test listing proposals with status filter."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
-        mock_org_role.return_value = ("org-123", "requester")
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
+        mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.list_proposals.return_value = [
             {"id": "proposal-1", "status": "open"},
@@ -161,22 +171,25 @@ class TestProposalsAPI:
         # Assertions
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 2
-        assert all(p["status"] == "open" for p in data)
+        assert len(data["proposals"]) == 2
+        assert all(p["status"] == "open" for p in data["proposals"])
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_get_proposal_by_id(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_get_proposal_by_id(self, mock_service, mock_org_role, mock_get_user, client):
         """Test getting a specific proposal."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
-        mock_org_role.return_value = ("org-123", "requester")
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
+        mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.get_proposal.return_value = {
             "id": "proposal-123",
             "proposal_type": "ADD_ITEM",
-            "status": "open"
+            "status": "open",
+            "org_id": "org-123"
         }
 
         # Make request
@@ -190,13 +203,15 @@ class TestProposalsAPI:
         data = json.loads(response.data)
         assert data["id"] == "proposal-123"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_approve_proposal_as_admin(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_approve_proposal_as_admin(self, mock_service, mock_org_role, mock_get_user, client):
         """Test approving a proposal as admin."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "admin-123"}
+        user_mock = Mock()
+        user_mock.id = "admin-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "admin")
 
         mock_service.approve_proposal.return_value = {
@@ -218,13 +233,15 @@ class TestProposalsAPI:
         data = json.loads(response.data)
         assert data["status"] == "merged"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_reject_proposal_as_reviewer(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_reject_proposal_as_reviewer(self, mock_service, mock_org_role, mock_get_user, client):
         """Test rejecting a proposal as reviewer."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "reviewer-123"}
+        user_mock = Mock()
+        user_mock.id = "reviewer-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.reject_proposal.return_value = {
@@ -246,12 +263,15 @@ class TestProposalsAPI:
         data = json.loads(response.data)
         assert data["status"] == "rejected"
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
-    def test_approve_proposal_requires_admin_or_reviewer(self, mock_org_role, mock_jwt, client):
+    @patch('app.api.proposals.proposal_service')
+    def test_approve_proposal_requires_admin_or_reviewer(self, mock_service, mock_org_role, mock_get_user, client):
         """Test that only admin/reviewer can approve proposals."""
-        # Setup mocks - regular requester role
-        mock_jwt.return_value = {"sub": "user-123"}
+        # Setup mocks - regular requester role (should be forbidden)
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
         mock_org_role.return_value = ("org-123", "requester")
 
         # Make request
@@ -265,14 +285,16 @@ class TestProposalsAPI:
         # Should be forbidden
         assert response.status_code == 403
 
-    @patch('app.middleware.auth_middleware.verify_jwt_token')
+    @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
-    def test_create_deprecate_item_proposal(self, mock_service, mock_org_role, mock_jwt, client):
+    def test_create_deprecate_item_proposal(self, mock_service, mock_org_role, mock_get_user, client):
         """Test creating DEPRECATE_ITEM proposal."""
         # Setup mocks
-        mock_jwt.return_value = {"sub": "user-123"}
-        mock_org_role.return_value = ("org-123", "requester")
+        user_mock = Mock()
+        user_mock.id = "user-123"
+        mock_get_user.return_value = user_mock
+        mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.create_proposal.return_value = {
             "id": "proposal-125",

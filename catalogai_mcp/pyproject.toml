@@ -1,10 +1,9 @@
 [project]
 name = "catalogai-mcp"
 version = "0.1.0"
-description = "MCP Server for CatalogAI with code execution"
+description = "MCP Server for CatalogAI - Agentic Procurement Interface"
 dependencies = [
     "mcp>=0.1.0",
-    "docker>=7.0.0",
     "httpx>=0.25.0"
 ]
 

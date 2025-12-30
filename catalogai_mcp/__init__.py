@@ -1,2 +1,2 @@
-"""CatalogAI MCP Server with code execution."""
+"""CatalogAI MCP Server - Agentic Procurement Interface."""
 __version__ = '0.1.0'
