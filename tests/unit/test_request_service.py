@@ -91,19 +91,14 @@ class TestRequestService:
             {"id": "request-2", "status": "pending"}
         ]
 
-        # Mock the query chain
-        mock_limit = Mock()
-        mock_limit.execute.return_value = mock_response
-        mock_order = Mock()
-        mock_order.limit.return_value = mock_limit
-        mock_eq2 = Mock()
-        mock_eq2.order.return_value = mock_order
-        mock_eq1 = Mock()
-        mock_eq1.eq.return_value = mock_eq2
-        mock_select = Mock()
-        mock_select.eq.return_value = mock_eq1
+        # Create a mock query that supports chaining
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.order.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.execute.return_value = mock_response
 
-        mock_supabase.table.return_value.select.return_value = mock_select
+        mock_supabase.table.return_value.select.return_value = mock_query
 
         # List requests
         result = request_service.list_requests(org_id="org-123", status="pending")
@@ -112,15 +107,23 @@ class TestRequestService:
         assert len(result) == 2
         assert result[0]["status"] == "pending"
 
+    @patch('app.services.request_service.get_request')
     @patch('app.services.request_service.get_supabase_client')
     @patch('app.services.request_service.log_event')
-    def test_review_request_approve(self, mock_log_event, mock_supabase_getter):
+    def test_review_request_approve(self, mock_log_event, mock_supabase_getter, mock_get_request):
         """Test approving a request via review."""
+        # Mock get_request to return a pending request
+        mock_get_request.return_value = {
+            "id": "request-123",
+            "org_id": "org-123",
+            "status": "pending"
+        }
+
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
 
-        # Mock update
+        # Mock update response
         mock_update_response = Mock()
         mock_update_response.data = [{
             "id": "request-123",
@@ -129,7 +132,12 @@ class TestRequestService:
             "reviewed_by": "admin-123"
         }]
 
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_update_response
+        # Create a mock query that supports chaining
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.execute.return_value = mock_update_response
+
+        mock_supabase.table.return_value.update.return_value = mock_query
 
         # Review request (approve)
         result = request_service.review_request(
@@ -153,15 +161,23 @@ class TestRequestService:
             metadata={"review_notes": "Approved for Q1"}
         )
 
+    @patch('app.services.request_service.get_request')
     @patch('app.services.request_service.get_supabase_client')
     @patch('app.services.request_service.log_event')
-    def test_review_request_reject(self, mock_log_event, mock_supabase_getter):
+    def test_review_request_reject(self, mock_log_event, mock_supabase_getter, mock_get_request):
         """Test rejecting a request via review."""
+        # Mock get_request to return a pending request
+        mock_get_request.return_value = {
+            "id": "request-123",
+            "org_id": "org-123",
+            "status": "pending"
+        }
+
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
 
-        # Mock update
+        # Mock update response
         mock_update_response = Mock()
         mock_update_response.data = [{
             "id": "request-123",
@@ -170,7 +186,12 @@ class TestRequestService:
             "reviewed_by": "admin-123"
         }]
 
-        mock_supabase.table.return_value.update.return_value.eq.return_value.execute.return_value = mock_update_response
+        # Create a mock query that supports chaining
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.execute.return_value = mock_update_response
+
+        mock_supabase.table.return_value.update.return_value = mock_query
 
         # Review request (reject)
         result = request_service.review_request(

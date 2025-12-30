@@ -125,3 +125,295 @@ class TestCatalogService:
         mock_encode.assert_called_once()
         assert result['id'] == 'item-123'
         assert result['name'] == 'Test Item'
+
+    @patch('app.services.catalog_service.get_supabase_admin')
+    def test_check_and_repair_embeddings_no_items(self, mock_supabase_admin):
+        """Test check_and_repair_embeddings with no items."""
+        mock_response = Mock()
+        mock_response.data = []
+
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.select.return_value = mock_query
+        mock_query.execute.return_value = mock_response
+
+        mock_supabase_admin.return_value.table.return_value.select.return_value = mock_query
+
+        result = catalog_service.check_and_repair_embeddings("org-123")
+
+        assert result["total_items"] == 0
+        assert result["repaired"] == 0
+
+    @patch('app.services.catalog_service.get_supabase_admin')
+    @patch('app.services.catalog_service.encode_catalog_item')
+    def test_check_and_repair_embeddings_repairs_missing(self, mock_encode, mock_supabase_admin):
+        """Test check_and_repair_embeddings repairs missing embeddings."""
+        mock_encode.return_value = [0.1] * 384
+
+        # Mock items response
+        items_data = [
+            {'id': 'item-1', 'name': 'Item 1', 'description': 'Desc 1', 'category': 'Cat1'},
+            {'id': 'item-2', 'name': 'Item 2', 'description': 'Desc 2', 'category': 'Cat2'}
+        ]
+
+        # Mock embeddings response (only item-1 has embedding)
+        embeddings_data = [{'catalog_item_id': 'item-1'}]
+
+        mock_admin = mock_supabase_admin.return_value
+
+        # Setup table().select() to return different results
+        def table_side_effect(table_name):
+            mock_table = Mock()
+            mock_query = Mock()
+            mock_query.eq.return_value = mock_query
+            mock_query.in_.return_value = mock_query
+            mock_query.select.return_value = mock_query
+
+            if table_name == 'catalog_items':
+                mock_response = Mock()
+                mock_response.data = items_data
+                mock_query.execute.return_value = mock_response
+            elif table_name == 'catalog_item_embeddings':
+                if hasattr(mock_query, '_is_select'):
+                    mock_response = Mock()
+                    mock_response.data = embeddings_data
+                    mock_query.execute.return_value = mock_response
+                else:
+                    mock_response = Mock()
+                    mock_response.data = [{'catalog_item_id': 'item-2'}]
+                    mock_insert = Mock()
+                    mock_insert.execute.return_value = mock_response
+                    mock_table.insert = Mock(return_value=mock_insert)
+
+            mock_table.select = Mock(return_value=mock_query)
+            mock_query._is_select = True
+            return mock_table
+
+        mock_admin.table = Mock(side_effect=table_side_effect)
+
+        result = catalog_service.check_and_repair_embeddings("org-123")
+
+        assert result["total_items"] == 2
+        assert result["items_without_embeddings"] == 1
+        assert result["repaired"] == 1
+
+    @patch('app.services.catalog_service.get_supabase_admin')
+    @patch('app.services.catalog_service.encode_catalog_item')
+    @patch('app.services.catalog_service.log_event')
+    def test_create_item_with_all_fields(self, mock_log, mock_encode, mock_supabase_admin):
+        """Test create_item with all optional fields."""
+        mock_encode.return_value = [0.1] * 384
+
+        item_data = {
+            'id': 'item-123',
+            'name': 'Test Product',
+            'price': 99.99,
+            'pricing_type': 'one_time',
+            'vendor': 'TestVendor',
+            'sku': 'TEST-123',
+            'product_url': 'https://example.com'
+        }
+
+        mock_item_execute = Mock()
+        mock_item_execute.data = [item_data]
+
+        mock_embed_execute = Mock()
+        mock_embed_execute.data = [{'catalog_item_id': 'item-123'}]
+
+        mock_admin = mock_supabase_admin.return_value
+        mock_table = Mock()
+        mock_insert = Mock()
+        mock_insert.execute.side_effect = [mock_item_execute, mock_embed_execute]
+        mock_table.insert.return_value = mock_insert
+        mock_admin.table.return_value = mock_table
+
+        result = catalog_service.create_item(
+            org_id="org-123",
+            name="Test Product",
+            description="Test description",
+            category="Electronics",
+            created_by="user-123",
+            price=99.99,
+            pricing_type="one_time",
+            vendor="TestVendor",
+            sku="TEST-123",
+            product_url="https://example.com",
+            metadata={"key": "value"}
+        )
+
+        assert result['id'] == 'item-123'
+        mock_log.assert_called_once()
+
+    @patch('app.services.catalog_service.get_supabase_admin')
+    @patch('app.services.catalog_service.encode_catalog_item')
+    def test_create_item_embedding_fails_rollback(self, mock_encode, mock_supabase_admin):
+        """Test create_item rolls back when embedding fails."""
+        mock_encode.side_effect = Exception("Embedding failed")
+
+        mock_item_execute = Mock()
+        mock_item_execute.data = [{'id': 'item-123', 'name': 'Test Item'}]
+
+        mock_delete_execute = Mock()
+        mock_delete_execute.data = [{'id': 'item-123'}]
+
+        mock_admin = mock_supabase_admin.return_value
+        mock_table = Mock()
+
+        # Mock insert
+        mock_insert = Mock()
+        mock_insert.execute.return_value = mock_item_execute
+        mock_table.insert.return_value = mock_insert
+
+        # Mock delete chain
+        mock_delete = Mock()
+        mock_eq = Mock()
+        mock_eq.execute.return_value = mock_delete_execute
+        mock_delete.eq.return_value = mock_eq
+        mock_table.delete.return_value = mock_delete
+
+        mock_admin.table.return_value = mock_table
+
+        with pytest.raises(Exception, match="Embedding generation failed"):
+            catalog_service.create_item(
+                org_id="org-123",
+                name="Test Item",
+                description="Test description",
+                category="Test",
+                created_by="user-123"
+            )
+
+    @patch('app.services.catalog_service.get_supabase_admin')
+    @patch('app.services.catalog_service.encode_catalog_item')
+    @patch('app.services.catalog_service.log_event')
+    def test_update_item_regenerates_embedding(self, mock_log, mock_encode, mock_supabase_admin):
+        """Test update_item regenerates embedding when content changes."""
+        mock_encode.return_value = [0.2] * 384
+
+        updated_data = {
+            'id': 'item-123',
+            'name': 'Updated Item',
+            'description': 'Updated description',
+            'category': 'Updated',
+            'org_id': 'org-123'
+        }
+
+        mock_update_execute = Mock()
+        mock_update_execute.data = [updated_data]
+
+        mock_embed_execute = Mock()
+        mock_embed_execute.data = [{'embedding': [0.2] * 384}]
+
+        mock_admin = mock_supabase_admin.return_value
+
+        def table_side_effect(table_name):
+            mock_table = Mock()
+            if table_name == 'catalog_items':
+                mock_update = Mock()
+                mock_eq = Mock()
+                mock_eq.execute.return_value = mock_update_execute
+                mock_update.eq.return_value = mock_eq
+                mock_table.update.return_value = mock_update
+            elif table_name == 'catalog_item_embeddings':
+                mock_update = Mock()
+                mock_eq = Mock()
+                mock_eq.execute.return_value = mock_embed_execute
+                mock_update.eq.return_value = mock_eq
+                mock_table.update.return_value = mock_update
+            return mock_table
+
+        mock_admin.table = Mock(side_effect=table_side_effect)
+
+        result = catalog_service.update_item(
+            "item-123",
+            {'name': 'Updated Item', 'description': 'Updated description'},
+            updated_by="user-123"
+        )
+
+        assert result['name'] == 'Updated Item'
+        mock_encode.assert_called_once()
+        mock_log.assert_called_once()
+
+    @patch('app.services.catalog_service.get_supabase_admin')
+    def test_update_item_without_content_change(self, mock_supabase_admin):
+        """Test update_item without content fields doesn't regenerate embedding."""
+        updated_data = {
+            'id': 'item-123',
+            'price': 199.99,
+            'org_id': 'org-123'
+        }
+
+        mock_update_execute = Mock()
+        mock_update_execute.data = [updated_data]
+
+        mock_update = Mock()
+        mock_eq = Mock()
+        mock_eq.execute.return_value = mock_update_execute
+        mock_update.eq.return_value = mock_eq
+
+        mock_table = Mock()
+        mock_table.update.return_value = mock_update
+
+        mock_supabase_admin.return_value.table.return_value = mock_table
+
+        result = catalog_service.update_item("item-123", {'price': 199.99})
+
+        assert result['price'] == 199.99
+
+    @patch('app.services.catalog_service.get_supabase_client')
+    def test_list_items_without_status_filter(self, mock_supabase):
+        """Test list_items without status filter."""
+        mock_response = Mock()
+        mock_response.data = [
+            {'id': 'item-1', 'status': 'active'},
+            {'id': 'item-2', 'status': 'deprecated'}
+        ]
+
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.order.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.execute.return_value = mock_response
+
+        mock_supabase.return_value.table.return_value.select.return_value = mock_query
+
+        result = catalog_service.list_items("org-123")
+
+        assert len(result) == 2
+
+    @patch('app.services.catalog_service.get_supabase_client')
+    @patch('app.services.catalog_service.encode_text')
+    def test_search_items_empty_results(self, mock_encode, mock_supabase):
+        """Test search_items returns empty list when no matches."""
+        mock_encode.return_value = [0.1] * 384
+
+        mock_execute = Mock()
+        mock_execute.data = []
+
+        mock_rpc = Mock()
+        mock_rpc.execute.return_value = mock_execute
+
+        mock_supabase.return_value.rpc.return_value = mock_rpc
+
+        result = catalog_service.search_items("nonexistent", "org-123")
+
+        assert result == []
+
+    @patch('app.services.catalog_service.get_supabase_admin')
+    def test_update_item_fails(self, mock_supabase_admin):
+        """Test update_item raises exception when update fails."""
+        mock_response = Mock()
+        mock_response.data = None
+
+        mock_eq = Mock()
+        mock_eq.execute.return_value = mock_response
+
+        mock_update = Mock()
+        mock_update.eq.return_value = mock_eq
+
+        mock_table = Mock()
+        mock_table.update.return_value = mock_update
+
+        mock_supabase_admin.return_value.table.return_value = mock_table
+
+        with pytest.raises(Exception, match="Failed to update catalog item"):
+            catalog_service.update_item("item-123", {'name': 'New Name'})
