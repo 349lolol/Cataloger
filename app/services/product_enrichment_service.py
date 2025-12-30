@@ -2,6 +2,7 @@
 Product enrichment service using Gemini AI with search capabilities.
 Automatically populates product fields (price, vendor, SKU, etc.) from a product name.
 """
+import json
 import google.generativeai as genai
 from typing import Dict, Optional
 from app.config import get_settings
@@ -58,11 +59,11 @@ def enrich_product(
     if additional_context:
         prompt_context += f"\nAdditional context: {additional_context}"
 
-    prompt = f"""You are a product data enrichment assistant. Given a product name, use web search to find accurate, current product information and return structured data.
+    prompt = f"""You are a product data enrichment assistant. Given a product name, use your knowledge to provide accurate product information and return structured data.
 
 {prompt_context}
 
-Search the web for this product and extract the following information:
+Based on the product name, extract the following information:
 
 1. **Standardized Name**: Clean, official product name
 2. **Description**: 1-2 sentence product description highlighting key features
@@ -105,7 +106,7 @@ If you cannot find reliable information for a field, use null. Be conservative w
     try:
         model = _get_gemini_client()
 
-        # Use Gemini with search grounding
+        # Use Gemini to generate product data
         response = model.generate_content(
             prompt,
             generation_config=genai.GenerationConfig(
@@ -113,13 +114,10 @@ If you cannot find reliable information for a field, use null. Be conservative w
                 top_p=0.8,
                 top_k=40,
                 max_output_tokens=2048,
-            ),
-            # Enable Google Search grounding for real-time data
-            tools=[{'google_search_retrieval': {}}]
+            )
         )
 
         # Parse JSON response
-        import json
         result_text = response.text.strip()
 
         # Handle markdown code blocks if present

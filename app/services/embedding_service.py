@@ -1,25 +1,36 @@
 """
 Embedding service for generating vector embeddings from text.
-Uses SentenceTransformer for semantic search capabilities.
+Uses Google Gemini text-embedding-004 for semantic search capabilities.
 """
 from typing import List
-import numpy as np
-from app.extensions import get_embedding_model
+import google.generativeai as genai
+from app.config import get_settings
+
+
+def _get_embedding_model():
+    """Get configured Gemini embedding model."""
+    settings = get_settings()
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    return 'models/text-embedding-004'
 
 
 def encode_text(text: str) -> List[float]:
     """
-    Encode a single text string into a vector embedding.
+    Encode a single text string into a vector embedding using Gemini.
 
     Args:
         text: Input text to encode
 
     Returns:
-        List of floats representing the embedding vector (384 dimensions)
+        List of floats representing the embedding vector (768 dimensions)
     """
-    model = get_embedding_model()
-    embedding = model.encode(text, convert_to_numpy=True)
-    return embedding.tolist()
+    model = _get_embedding_model()
+    result = genai.embed_content(
+        model=model,
+        content=text,
+        task_type="retrieval_document"
+    )
+    return result['embedding']
 
 
 def encode_batch(texts: List[str]) -> List[List[float]]:
@@ -32,9 +43,16 @@ def encode_batch(texts: List[str]) -> List[List[float]]:
     Returns:
         List of embedding vectors
     """
-    model = get_embedding_model()
-    embeddings = model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
-    return embeddings.tolist()
+    model = _get_embedding_model()
+    embeddings = []
+    for text in texts:
+        result = genai.embed_content(
+            model=model,
+            content=text,
+            task_type="retrieval_document"
+        )
+        embeddings.append(result['embedding'])
+    return embeddings
 
 
 def encode_catalog_item(name: str, description: str = "", category: str = "") -> List[float]:
