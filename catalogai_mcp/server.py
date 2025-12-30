@@ -545,6 +545,88 @@ def check_embeddings_health() -> Dict[str, Any]:
 
 
 # ============================================================================
+# CODE EXECUTION TOOL
+# ============================================================================
+
+@mcp.tool()
+def execute_code(code: str, description: str = "Execute Python code") -> str:
+    """
+    Execute Python code in an isolated Docker sandbox with catalogai_sdk available.
+
+    This tool dramatically reduces token usage by allowing Claude to write Python code
+    that performs complex multi-step operations, instead of making multiple direct tool calls.
+
+    The sandbox has access to the catalogai SDK pre-installed:
+
+    ```python
+    from catalogai import CatalogAI
+
+    client = CatalogAI()  # Auto-authenticated with your token
+
+    # All operations available:
+    results = client.catalog.search("laptop", limit=10)
+    request = client.requests.create(item_name="...", justification="...")
+    proposals = client.proposals.list(status="pending")
+    ```
+
+    Args:
+        code: Python code to execute (must be valid Python 3.11)
+        description: Brief description of what the code does
+
+    Returns:
+        The output (stdout/stderr) from code execution
+
+    Example:
+        execute_code('''
+from catalogai import CatalogAI
+
+client = CatalogAI()
+
+# Search for laptops under $2000
+results = client.catalog.search("laptop", limit=20)
+affordable = [r for r in results if r.get('price', 9999) < 2000]
+
+# Create request for best match
+if affordable:
+    best = max(affordable, key=lambda x: x.get('similarity_score', 0))
+    request = client.requests.create(
+        item_name=best['name'],
+        justification=f"Best laptop under $2000: {best['name']}"
+    )
+    print(f"Created request {request['id']} for {best['name']}")
+else:
+    print("No laptops found under $2000")
+''', description="Find and request best laptop under $2000")
+
+    Security:
+        - Code runs in isolated Docker container
+        - 512MB memory limit, 50% CPU quota, 30s timeout
+        - Non-root user, read-only filesystem except /tmp
+        - Network access only to API
+    """
+    # Import code executor
+    from catalogai_mcp.code_executor import CodeExecutor
+
+    # Initialize executor if not already done
+    if not hasattr(execute_code, '_executor'):
+        execute_code._executor = CodeExecutor(image_name="catalogai-sandbox:latest")
+
+    # Prepare execution context
+    context = {
+        "api_url": _auth_state['api_url'],
+        "auth_token": _auth_state['access_token']
+    }
+
+    # Execute code in sandbox
+    result = execute_code._executor.execute(code, context)
+
+    if result['status'] == 'error':
+        return f"Error executing code:\n{result['output']}"
+    else:
+        return result['output']
+
+
+# ============================================================================
 # SERVER INITIALIZATION
 # ============================================================================
 

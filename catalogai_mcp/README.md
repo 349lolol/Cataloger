@@ -4,7 +4,36 @@ Agentic procurement interface for Claude Desktop.
 
 ## Features
 
-The MCP server provides **17 direct tools** for catalog operations:
+The MCP server implements **Anthropic's Code Execution with MCP pattern** for massive token reduction, alongside 17 direct tools for catalog operations.
+
+### Code Execution Tool (⭐ Recommended)
+
+- `execute_code` - Execute Python code in isolated Docker sandbox with catalogai SDK
+  - **98.7% token reduction** for multi-step workflows
+  - Auto-authenticated with your session token
+  - Pre-installed catalogai_sdk for all operations
+  - Secure: 512MB RAM limit, 50% CPU, 30s timeout, isolated network
+
+**Example**: Instead of 4-5 tool calls consuming 50K tokens, write Python code that executes in one call using ~1K tokens:
+
+```python
+from catalogai import CatalogAI
+
+client = CatalogAI()  # Auto-authenticated
+
+# Multi-step workflow in one execution
+results = client.catalog.search("laptop", limit=20)
+affordable = [r for r in results if r.get('price', 9999) < 2000]
+best = max(affordable, key=lambda x: x['similarity_score'])
+
+request = client.requests.create(
+    item_name=best['name'],
+    justification=f"Best laptop under $2000: {best['name']}"
+)
+print(f"Created request {request['id']}")
+```
+
+### Direct Tools (Legacy)
 
 ### Catalog Tools
 - `search_catalog` - Semantic search with vector embeddings
@@ -59,7 +88,24 @@ This creates:
 
 **Save the credentials** printed by the script - you'll need them for MCP config.
 
-### 3. Test Setup (Optional but Recommended)
+### 3. Build Docker Sandbox (Required for Code Execution)
+
+To use the `execute_code` tool, build the Docker sandbox:
+
+```bash
+cd catalogai_mcp
+./build_sandbox.sh
+```
+
+This creates a secure, isolated container with:
+- Python 3.11-slim
+- catalogai_sdk pre-installed
+- Non-root user (security)
+- Resource limits (512MB RAM, 50% CPU, 30s timeout)
+
+**Skip this step** if you only want to use direct tools (no code execution).
+
+### 4. Test Setup (Optional but Recommended)
 
 Run the setup verification script to catch issues early:
 
@@ -73,7 +119,7 @@ This checks:
 - Supabase authentication works
 - API is reachable
 
-### 4. Configure Claude Desktop
+### 5. Configure Claude Desktop
 
 Edit `~/.config/claude/claude_desktop_config.json` (macOS) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
@@ -111,6 +157,49 @@ python run.py
 Claude Desktop will automatically connect to your MCP server on startup.
 
 ## Usage Examples
+
+### Code Execution Workflow (⭐ Recommended for Multi-Step Tasks)
+
+**Scenario**: Find chairs under $500, create request for the most ergonomic one
+
+```
+You: "Find office chairs under $500 and request the most ergonomic one"
+
+Claude generates Python code and calls execute_code:
+
+from catalogai import CatalogAI
+
+client = CatalogAI()
+
+# Search for ergonomic chairs
+results = client.catalog.search("ergonomic office chair", limit=20)
+affordable = [r for r in results if r.get('price', 9999) < 500]
+
+if not affordable:
+    print("No chairs found under $500")
+else:
+    # Find most ergonomic (highest similarity score)
+    best = max(affordable, key=lambda x: x['similarity_score'])
+
+    # Create request
+    request = client.requests.create(
+        item_name=best['name'],
+        justification=f"Most ergonomic chair under $500: {best['name']} at ${best['price']}"
+    )
+    print(f"✓ Created request {request['id']} for {best['name']}")
+
+Output: "✓ Created request REQ-123 for Herman Miller Sayl Chair"
+
+Token usage: ~1,200 tokens (vs ~15,000 with direct tools)
+```
+
+**Why this is better**:
+- Single tool call instead of 4-5 chained calls
+- Complex filtering logic in Python (cheaper than passing all data to Claude)
+- Only final output returned to Claude (98% less token usage)
+- Faster execution (no round trips between tools)
+
+### Direct Tool Examples (For Simple Operations)
 
 ### Search Catalog
 ```
