@@ -4,8 +4,13 @@ Automatically populates product fields (price, vendor, SKU, etc.) from a product
 """
 import json
 import google.generativeai as genai
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 from app.config import get_settings
+from app.utils.resilience import resilient_external_call
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _get_gemini_client():
@@ -15,6 +20,7 @@ def _get_gemini_client():
     return genai.GenerativeModel(settings.GEMINI_MODEL)
 
 
+@resilient_external_call("gemini", max_retries=3)
 def enrich_product(
     product_name: str,
     category: Optional[str] = None,
@@ -145,27 +151,31 @@ If you cannot find reliable information for a field, use null. Be conservative w
         raise Exception(f"Product enrichment failed: {str(e)}")
 
 
-def enrich_product_batch(product_names: list[str]) -> list[Dict]:
+def enrich_product_batch(product_names: List[str], max_workers: int = 5) -> List[Dict]:
     """
-    Enrich multiple products in sequence.
+    Enrich multiple products in parallel using ThreadPoolExecutor.
 
-    Note: This processes products sequentially to avoid rate limits.
-    For production, consider implementing batching with the Gemini API.
+    Uses concurrent processing to significantly improve performance.
+    Example: 20 products @ 3s each = 12s total (vs 60s sequential)
 
     Args:
         product_names: List of product names to enrich
+        max_workers: Maximum number of concurrent threads (default: 5)
 
     Returns:
-        List of enriched product data dictionaries
+        List of enriched product data dictionaries (maintains input order)
     """
-    results = []
-    for product_name in product_names:
+    results = [None] * len(product_names)  # Pre-allocate to maintain order
+
+    def enrich_with_index(index: int, product_name: str) -> tuple[int, Dict]:
+        """Enrich product and return with index for ordering."""
         try:
             result = enrich_product(product_name)
-            results.append(result)
+            return (index, result)
         except Exception as e:
+            logger.error(f"Failed to enrich product '{product_name}': {e}")
             # On error, return partial data
-            results.append({
+            return (index, {
                 "name": product_name,
                 "description": "",
                 "category": "",
@@ -178,5 +188,18 @@ def enrich_product_batch(product_names: list[str]) -> list[Dict]:
                 "confidence": "low",
                 "error": str(e)
             })
+
+    # Process in parallel with ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all tasks
+        futures = {
+            executor.submit(enrich_with_index, i, name): i
+            for i, name in enumerate(product_names)
+        }
+
+        # Collect results as they complete
+        for future in as_completed(futures):
+            index, result = future.result()
+            results[index] = result
 
     return results

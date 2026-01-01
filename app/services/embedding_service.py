@@ -5,6 +5,11 @@ Uses Google Gemini text-embedding-004 for semantic search capabilities.
 from typing import List
 import google.generativeai as genai
 from app.config import get_settings
+from app.utils.resilience import resilient_external_call
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _get_embedding_model():
@@ -14,6 +19,7 @@ def _get_embedding_model():
     return 'models/text-embedding-004'
 
 
+@resilient_external_call("gemini", max_retries=3)
 def encode_text(text: str) -> List[float]:
     """
     Encode a single text string into a vector embedding using Gemini.
@@ -33,26 +39,40 @@ def encode_text(text: str) -> List[float]:
     return result['embedding']
 
 
-def encode_batch(texts: List[str]) -> List[List[float]]:
+def encode_batch(texts: List[str], max_workers: int = 5) -> List[List[float]]:
     """
-    Encode multiple texts into embedding vectors (batch processing).
+    Encode multiple texts into embedding vectors using parallel processing.
 
     Args:
         texts: List of input texts to encode
+        max_workers: Maximum number of concurrent threads (default: 5)
 
     Returns:
-        List of embedding vectors
+        List of embedding vectors (maintains input order)
     """
-    model = _get_embedding_model()
-    embeddings = []
-    for text in texts:
-        result = genai.embed_content(
-            model=model,
-            content=text,
-            task_type="retrieval_document"
-        )
-        embeddings.append(result['embedding'])
-    return embeddings
+    results = [None] * len(texts)
+
+    def encode_with_index(index: int, text: str) -> tuple[int, List[float]]:
+        """Encode text and return with index for ordering."""
+        try:
+            embedding = encode_text(text)
+            return (index, embedding)
+        except Exception as e:
+            logger.error(f"Failed to encode text at index {index}: {e}")
+            raise
+
+    # Process in parallel with ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {
+            executor.submit(encode_with_index, i, text): i
+            for i, text in enumerate(texts)
+        }
+
+        for future in as_completed(futures):
+            index, embedding = future.result()
+            results[index] = embedding
+
+    return results
 
 
 def encode_catalog_item(name: str, description: str = "", category: str = "") -> List[float]:

@@ -1,15 +1,20 @@
 # Web Framework
 Flask==3.0.0
 flask-cors==4.0.0
+Flask-Limiter==3.5.0
 
 # Database & Supabase
 supabase==2.3.0
 psycopg2-binary==2.9.9
 pgvector==0.2.4
+alembic==1.13.1
 
-# AI/ML - Embeddings
-sentence-transformers==2.2.2
-torch==2.2.0
+# Caching
+redis==5.0.1
+
+# AI/ML - Embeddings (optional - app uses Gemini embeddings by default)
+# sentence-transformers==3.3.1
+# torch==2.6.0
 
 # AI/ML - Product Enrichment
 google-generativeai==0.8.3
@@ -20,6 +25,20 @@ pydantic-settings==2.1.0
 
 # HTTP Client
 httpx==0.24.1
+
+# Resilience & Reliability
+tenacity==8.2.3
+pybreaker==1.0.2
+
+# Background Jobs
+celery==5.3.4
+redis==5.0.1
+
+# Monitoring & Observability
+opentelemetry-api==1.21.0
+opentelemetry-sdk==1.21.0
+opentelemetry-instrumentation-flask==0.42b0
+python-json-logger==2.0.7
 
 # AWS SDK (for Secrets Manager)
 boto3==1.34.0

@@ -21,13 +21,16 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str
     SUPABASE_SERVICE_ROLE_KEY: str
 
-    # Embedding Model Configuration
-    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
-    EMBEDDING_DIMENSION: int = 384
-
-    # Gemini AI Configuration (for product enrichment)
+    # Gemini AI Configuration
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-3-flash-preview"  # Gemini 3.0 Flash Preview - latest model with search grounding
+    GEMINI_MODEL: str = "gemini-3-flash-preview"
+
+    # CORS Configuration
+    CORS_ORIGINS: str = "*"  # Comma-separated for production: "https://app.example.com"
+
+    # Circuit Breaker Configuration
+    CIRCUIT_BREAKER_FAIL_MAX: int = 5
+    CIRCUIT_BREAKER_TIMEOUT: int = 60
 
     # AWS Configuration (for production deployment)
     USE_AWS_SECRETS: bool = False

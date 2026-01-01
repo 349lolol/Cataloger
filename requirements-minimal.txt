@@ -1,0 +1,47 @@
+# Minimal requirements to run the app
+# Use this if you have build issues with requirements.txt
+
+# Web Framework
+Flask==3.0.0
+flask-cors==4.0.0
+
+# Database & Supabase (no psycopg2 needed - supabase client handles it)
+supabase==2.3.0
+
+# AI/ML - Product Enrichment
+google-generativeai==0.8.3
+
+# Validation & Data Models
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# HTTP Client
+httpx==0.24.1
+
+# Resilience & Reliability
+tenacity==8.2.3
+pybreaker==1.0.2
+
+# Monitoring (minimal)
+python-json-logger==2.0.7
+
+# AWS SDK (for Secrets Manager)
+boto3==1.34.0
+
+# Production Server
+gunicorn==21.2.0
+
+# Utilities
+python-dotenv==1.0.0
+
+# Optional: Only install if you need rate limiting
+# Flask-Limiter==3.5.0
+# redis==5.0.1
+
+# Optional: Only install if you need background jobs
+# celery==5.3.4
+
+# Optional: Only install if you need OpenTelemetry
+# opentelemetry-api==1.21.0
+# opentelemetry-sdk==1.21.0
+# opentelemetry-instrumentation-flask==0.42b0

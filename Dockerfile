@@ -25,4 +25,6 @@ USER appuser
 EXPOSE 5000
 
 # Use gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "--access-logfile", "-", "--error-logfile", "-", "run:app"]
+# Reduced timeout to 30s - long operations should use background tasks
+# Increased workers to 8 for better concurrency
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "8", "--timeout", "30", "--worker-class", "sync", "--access-logfile", "-", "--error-logfile", "-", "--log-level", "info", "run:app"]
