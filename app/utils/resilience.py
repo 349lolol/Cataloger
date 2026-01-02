@@ -69,6 +69,44 @@ def is_valid_uuid(value: str) -> bool:
     return bool(uuid_pattern.match(str(value))) if value else False
 
 
+def validate_metadata(metadata: Any, max_keys: int = 50, max_size_bytes: int = 65536) -> tuple[bool, str]:
+    """
+    Validate metadata dict for size and structure constraints.
+
+    Args:
+        metadata: Metadata dict to validate
+        max_keys: Maximum number of keys allowed (default: 50)
+        max_size_bytes: Maximum JSON size in bytes (default: 64KB)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+
+    Example:
+        valid, error = validate_metadata(data.get('metadata'))
+        if not valid:
+            return jsonify({"error": error}), 400
+    """
+    import json
+
+    if metadata is None:
+        return True, ""
+
+    if not isinstance(metadata, dict):
+        return False, "metadata must be a dictionary"
+
+    if len(metadata) > max_keys:
+        return False, f"metadata cannot have more than {max_keys} keys"
+
+    try:
+        serialized = json.dumps(metadata)
+        if len(serialized.encode('utf-8')) > max_size_bytes:
+            return False, f"metadata size exceeds maximum of {max_size_bytes} bytes"
+    except (TypeError, ValueError) as e:
+        return False, f"metadata must be JSON serializable: {str(e)}"
+
+    return True, ""
+
+
 settings = get_settings()
 
 

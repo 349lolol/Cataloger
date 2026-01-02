@@ -2,8 +2,11 @@
 Audit service for logging immutable event records.
 All catalog operations are logged for compliance and debugging.
 """
+import logging
 from typing import Dict, List, Optional
 from app.extensions import get_supabase_admin
+
+logger = logging.getLogger(__name__)
 
 
 def log_event(
@@ -43,8 +46,8 @@ def log_event(
     response = supabase_admin.table('audit_events').insert(event_data).execute()
 
     if not response.data:
-        # Log failure but don't fail the main operation
-        print(f"Warning: Failed to log audit event: {event_type}")
+        # Issue #4.4: Log failure using logger instead of print
+        logger.warning(f"Failed to log audit event: {event_type} for resource {resource_type}/{resource_id}")
         return {}
 
     return response.data[0]

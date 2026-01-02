@@ -2,10 +2,16 @@
 Proposal service for managing catalog change proposals.
 Implements governance workflow for adding, replacing, or deprecating items.
 """
+import logging
 from typing import List, Dict, Optional
 from app.extensions import get_supabase_client
 from app.services.audit_service import log_event
 from app.services.catalog_service import create_item, update_item
+
+logger = logging.getLogger(__name__)
+
+# Valid proposal types - single source of truth
+VALID_PROPOSAL_TYPES = ('ADD_ITEM', 'REPLACE_ITEM', 'DEPRECATE_ITEM')
 
 
 def create_proposal(
@@ -46,8 +52,8 @@ def create_proposal(
     Returns:
         Created proposal data
     """
-    if proposal_type not in ['ADD_ITEM', 'REPLACE_ITEM', 'DEPRECATE_ITEM']:
-        raise ValueError("Invalid proposal type")
+    if proposal_type not in VALID_PROPOSAL_TYPES:
+        raise ValueError(f"Invalid proposal type. Must be one of: {', '.join(VALID_PROPOSAL_TYPES)}")
 
     supabase = get_supabase_client()
     proposal_data = {
@@ -181,10 +187,8 @@ def approve_proposal(
         proposal = approve_proposal(proposal_id, reviewer_user_id, "LGTM")
         # At this point, the catalog item already exists in catalog_items table
     """
-    # Get proposal
+    # Get proposal (raises Exception if not found, so no need for null check)
     proposal = get_proposal(proposal_id)
-    if not proposal:
-        raise Exception("Proposal not found")
 
     # Issue #9: Validate org_id matches if provided (defense in depth)
     if org_id and proposal['org_id'] != org_id:
@@ -211,20 +215,31 @@ def approve_proposal(
         raise Exception("Failed to approve proposal - it may have been already processed")
 
     # Execute merge logic based on proposal type
-    if proposal['proposal_type'] == 'ADD_ITEM':
-        _merge_add_item(proposal, reviewed_by)
-    elif proposal['proposal_type'] == 'REPLACE_ITEM':
-        _merge_replace_item(proposal, reviewed_by)
-    elif proposal['proposal_type'] == 'DEPRECATE_ITEM':
-        _merge_deprecate_item(proposal, reviewed_by)
+    # Wrap in try-except to handle merge failures and revert status
+    try:
+        if proposal['proposal_type'] == 'ADD_ITEM':
+            _merge_add_item(proposal, reviewed_by)
+        elif proposal['proposal_type'] == 'REPLACE_ITEM':
+            _merge_replace_item(proposal, reviewed_by)
+        elif proposal['proposal_type'] == 'DEPRECATE_ITEM':
+            _merge_deprecate_item(proposal, reviewed_by)
+    except Exception as e:
+        # Merge failed - revert proposal status back to pending
+        logger.error(f"Merge failed for proposal {proposal_id}, reverting to pending: {e}")
+        supabase.table('proposals') \
+            .update({'status': 'pending', 'reviewed_by': None, 'review_notes': None}) \
+            .eq('id', proposal_id) \
+            .execute()
+        raise Exception(f"Merge failed: {str(e)}")
 
-    # Mark as merged
+    # Mark as merged (only reached if merge succeeded)
     supabase.table('proposals') \
         .update({
             'status': 'merged',
             'merged_at': 'now()'
         }) \
         .eq('id', proposal_id) \
+        .eq('status', 'approved') \
         .execute()
 
     # Log audit event
@@ -237,6 +252,7 @@ def approve_proposal(
         metadata={'proposal_type': proposal['proposal_type']}
     )
 
+    # Return the updated proposal data from our update, avoiding extra query
     return get_proposal(proposal_id)
 
 
@@ -247,9 +263,8 @@ def reject_proposal(
     org_id: Optional[str] = None
 ) -> Dict:
     """Reject a proposal."""
+    # Get proposal (raises Exception if not found, so no need for null check)
     proposal = get_proposal(proposal_id)
-    if not proposal:
-        raise Exception("Proposal not found")
 
     # Issue #9: Validate org_id matches if provided (defense in depth)
     if org_id and proposal['org_id'] != org_id:
@@ -293,49 +308,72 @@ def reject_proposal(
 
 def _merge_add_item(proposal: Dict, created_by: str):
     """Create new catalog item from proposal."""
-    create_item(
-        org_id=proposal['org_id'],
-        name=proposal['item_name'],
-        description=proposal.get('item_description', ''),
-        category=proposal.get('item_category', ''),
-        created_by=created_by,
-        price=proposal.get('item_price'),
-        pricing_type=proposal.get('item_pricing_type'),
-        product_url=proposal.get('item_product_url'),
-        vendor=proposal.get('item_vendor'),
-        sku=proposal.get('item_sku'),
-        metadata=proposal.get('item_metadata', {})
-    )
+    # Issue #5.2: Log merge operation start
+    logger.info(f"Merging ADD_ITEM proposal {proposal['id']}: creating item '{proposal['item_name']}'")
+    try:
+        item = create_item(
+            org_id=proposal['org_id'],
+            name=proposal['item_name'],
+            description=proposal.get('item_description', ''),
+            category=proposal.get('item_category', ''),
+            created_by=created_by,
+            price=proposal.get('item_price'),
+            pricing_type=proposal.get('item_pricing_type'),
+            product_url=proposal.get('item_product_url'),
+            vendor=proposal.get('item_vendor'),
+            sku=proposal.get('item_sku'),
+            metadata=proposal.get('item_metadata', {})
+        )
+        logger.info(f"Successfully merged ADD_ITEM proposal {proposal['id']}: created item {item['id']}")
+        return item
+    except Exception as e:
+        logger.error(f"Failed to merge ADD_ITEM proposal {proposal['id']}: {e}")
+        raise
 
 
 def _merge_replace_item(proposal: Dict, created_by: str):
     """Deprecate old item and create replacement."""
-    # Deprecate old item
     old_item_id = proposal['replacing_item_id']
+    # Issue #5.2: Log merge operation start
+    logger.info(f"Merging REPLACE_ITEM proposal {proposal['id']}: replacing item {old_item_id}")
 
-    # Create new item (audit logging happens inside create_item)
-    new_item = create_item(
-        org_id=proposal['org_id'],
-        name=proposal['item_name'],
-        description=proposal.get('item_description', ''),
-        category=proposal.get('item_category', ''),
-        created_by=created_by,
-        price=proposal.get('item_price'),
-        pricing_type=proposal.get('item_pricing_type'),
-        product_url=proposal.get('item_product_url'),
-        vendor=proposal.get('item_vendor'),
-        sku=proposal.get('item_sku'),
-        metadata=proposal.get('item_metadata', {})
-    )
+    try:
+        # Create new item (audit logging happens inside create_item)
+        new_item = create_item(
+            org_id=proposal['org_id'],
+            name=proposal['item_name'],
+            description=proposal.get('item_description', ''),
+            category=proposal.get('item_category', ''),
+            created_by=created_by,
+            price=proposal.get('item_price'),
+            pricing_type=proposal.get('item_pricing_type'),
+            product_url=proposal.get('item_product_url'),
+            vendor=proposal.get('item_vendor'),
+            sku=proposal.get('item_sku'),
+            metadata=proposal.get('item_metadata', {})
+        )
 
-    # Update old item to deprecated with replacement link (audit logging happens inside update_item)
-    update_item(old_item_id, {
-        'status': 'deprecated',
-        'replacement_item_id': new_item['id']
-    }, updated_by=created_by)
+        # Update old item to deprecated with replacement link (audit logging happens inside update_item)
+        update_item(old_item_id, {
+            'status': 'deprecated',
+            'replacement_item_id': new_item['id']
+        }, updated_by=created_by)
+
+        logger.info(f"Successfully merged REPLACE_ITEM proposal {proposal['id']}: deprecated {old_item_id}, created {new_item['id']}")
+    except Exception as e:
+        logger.error(f"Failed to merge REPLACE_ITEM proposal {proposal['id']}: {e}")
+        raise
 
 
 def _merge_deprecate_item(proposal: Dict, updated_by: str):
     """Mark item as deprecated."""
     item_id = proposal['replacing_item_id']
-    update_item(item_id, {'status': 'deprecated'}, updated_by=updated_by)
+    # Issue #5.2: Log merge operation start
+    logger.info(f"Merging DEPRECATE_ITEM proposal {proposal['id']}: deprecating item {item_id}")
+
+    try:
+        update_item(item_id, {'status': 'deprecated'}, updated_by=updated_by)
+        logger.info(f"Successfully merged DEPRECATE_ITEM proposal {proposal['id']}: deprecated item {item_id}")
+    except Exception as e:
+        logger.error(f"Failed to merge DEPRECATE_ITEM proposal {proposal['id']}: {e}")
+        raise

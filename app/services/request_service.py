@@ -222,9 +222,8 @@ def review_request(
         raise ValueError("Status must be 'approved' or 'rejected'")
 
     # Get current request to validate status transition
+    # Note: get_request raises Exception if not found, no null check needed
     current_request = get_request(request_id)
-    if not current_request:
-        raise Exception("Request not found")
 
     # Issue #9: Validate org_id matches if provided (defense in depth)
     if org_id and current_request['org_id'] != org_id:

@@ -39,27 +39,36 @@ def encode_text(text: str) -> List[float]:
     return result['embedding']
 
 
-def encode_batch(texts: List[str], max_workers: int = 5) -> List[List[float]]:
+def encode_batch(
+    texts: List[str],
+    max_workers: int = 5,
+    timeout_per_item: float = 30.0
+) -> List[List[float]]:
     """
     Encode multiple texts into embedding vectors using parallel processing.
 
     Args:
         texts: List of input texts to encode
         max_workers: Maximum number of concurrent threads (default: 5)
+        timeout_per_item: Timeout in seconds for each embedding call (default: 30)
 
     Returns:
-        List of embedding vectors (maintains input order)
+        List of embedding vectors (maintains input order).
+        Failed embeddings will be None - caller should handle this.
+
+    Raises:
+        ValueError: If all embeddings fail
     """
+    if not texts:
+        return []
+
     results = [None] * len(texts)
+    failed_count = 0
 
     def encode_with_index(index: int, text: str) -> tuple[int, List[float]]:
         """Encode text and return with index for ordering."""
-        try:
-            embedding = encode_text(text)
-            return (index, embedding)
-        except Exception as e:
-            logger.error(f"Failed to encode text at index {index}: {e}")
-            raise
+        embedding = encode_text(text)
+        return (index, embedding)
 
     # Process in parallel with ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -69,8 +78,23 @@ def encode_batch(texts: List[str], max_workers: int = 5) -> List[List[float]]:
         }
 
         for future in as_completed(futures):
-            index, embedding = future.result()
-            results[index] = embedding
+            original_index = futures[future]
+            try:
+                index, embedding = future.result(timeout=timeout_per_item)
+                results[index] = embedding
+            except TimeoutError:
+                logger.error(f"Timeout encoding text at index {original_index}")
+                failed_count += 1
+            except Exception as e:
+                logger.error(f"Failed to encode text at index {original_index}: {e}")
+                failed_count += 1
+
+    # Raise if all embeddings failed
+    if failed_count == len(texts):
+        raise ValueError(f"All {len(texts)} embedding requests failed")
+
+    if failed_count > 0:
+        logger.warning(f"{failed_count}/{len(texts)} embeddings failed, results contain None values")
 
     return results
 

@@ -3,7 +3,8 @@ Application configuration with support for environment variables and AWS Secrets
 """
 import os
 import logging
-from pydantic_settings import BaseSettings
+import threading
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -38,10 +39,11 @@ class Settings(BaseSettings):
     AWS_SECRET_NAME: str = "catalogai/production"
     AWS_REGION: str = "us-east-1"
 
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra fields in .env file
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore"  # Ignore extra fields in .env file
+    )
 
     def model_post_init(self, __context) -> None:
         """Validate settings after initialization."""
@@ -108,17 +110,23 @@ class Settings(BaseSettings):
 # Issue #3: Removed lru_cache to allow secret rotation
 # Settings are lightweight enough to recreate on each call
 _cached_settings: Optional[Settings] = None
+_settings_lock = threading.Lock()
+
 
 def get_settings() -> Settings:
     """
-    Get application settings instance.
+    Get application settings instance with thread-safe initialization.
 
     Note: Settings are cached in a module-level variable but can be
     refreshed by setting _cached_settings to None. This allows
     secret rotation without the permanent caching of lru_cache.
+    Uses double-checked locking for thread safety.
     """
     global _cached_settings
     if _cached_settings is None:
-        _cached_settings = Settings()
-        _cached_settings.load_aws_secrets()
+        with _settings_lock:
+            # Double-check after acquiring lock
+            if _cached_settings is None:
+                _cached_settings = Settings()
+                _cached_settings.load_aws_secrets()
     return _cached_settings

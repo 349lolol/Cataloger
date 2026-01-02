@@ -5,7 +5,8 @@ import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
 from app.services import proposal_service
-from app.utils.resilience import safe_int, is_valid_uuid
+from app.services.proposal_service import VALID_PROPOSAL_TYPES
+from app.utils.resilience import safe_int, is_valid_uuid, validate_metadata
 
 logger = logging.getLogger(__name__)
 bp = Blueprint('proposals', __name__)
@@ -36,6 +37,25 @@ def create_proposal():
     data = request.get_json()
     if not data or 'proposal_type' not in data:
         return jsonify({"error": "proposal_type is required"}), 400
+
+    # Issue #3.1: Validate proposal_type value at API layer
+    if data['proposal_type'] not in VALID_PROPOSAL_TYPES:
+        return jsonify({"error": f"Invalid proposal_type. Must be one of: {', '.join(VALID_PROPOSAL_TYPES)}"}), 400
+
+    # Issue #7.3: Validate replacing_item_id UUID format if provided
+    replacing_item_id = data.get('replacing_item_id')
+    if replacing_item_id and not is_valid_uuid(replacing_item_id):
+        return jsonify({"error": "Invalid replacing_item_id format"}), 400
+
+    # Issue #7.3: Validate request_id UUID format if provided
+    request_id = data.get('request_id')
+    if request_id and not is_valid_uuid(request_id):
+        return jsonify({"error": "Invalid request_id format"}), 400
+
+    # Issue #7.4: Validate metadata size to prevent abuse
+    valid, error = validate_metadata(data.get('item_metadata'))
+    if not valid:
+        return jsonify({"error": error}), 400
 
     try:
         proposal = proposal_service.create_proposal(

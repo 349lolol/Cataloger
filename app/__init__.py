@@ -26,7 +26,11 @@ def create_app() -> Flask:
     setup_logging(app)
 
     # Enable CORS with configurable origins
-    origins = settings.CORS_ORIGINS.split(',') if settings.CORS_ORIGINS != "*" else "*"
+    # Issue #4.2: Properly trim whitespace from comma-separated origins
+    if settings.CORS_ORIGINS != "*":
+        origins = [o.strip() for o in settings.CORS_ORIGINS.split(',') if o.strip()]
+    else:
+        origins = "*"
     CORS(app, resources={r"/api/*": {"origins": origins}})
 
     # Initialize rate limiter (optional)

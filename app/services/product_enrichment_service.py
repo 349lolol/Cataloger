@@ -151,7 +151,11 @@ If you cannot find reliable information for a field, use null. Be conservative w
         raise Exception(f"Product enrichment failed: {str(e)}")
 
 
-def enrich_product_batch(product_names: List[str], max_workers: int = 5) -> List[Dict]:
+def enrich_product_batch(
+    product_names: List[str],
+    max_workers: int = 5,
+    timeout_per_item: float = 60.0
+) -> List[Dict]:
     """
     Enrich multiple products in parallel using ThreadPoolExecutor.
 
@@ -161,45 +165,57 @@ def enrich_product_batch(product_names: List[str], max_workers: int = 5) -> List
     Args:
         product_names: List of product names to enrich
         max_workers: Maximum number of concurrent threads (default: 5)
+        timeout_per_item: Timeout in seconds for each enrichment call (default: 60)
 
     Returns:
-        List of enriched product data dictionaries (maintains input order)
+        List of enriched product data dictionaries (maintains input order).
+        Failed items will have an "error" field and confidence="low".
     """
+    if not product_names:
+        return []
+
     results = [None] * len(product_names)  # Pre-allocate to maintain order
 
     def enrich_with_index(index: int, product_name: str) -> tuple[int, Dict]:
         """Enrich product and return with index for ordering."""
-        try:
-            result = enrich_product(product_name)
-            return (index, result)
-        except Exception as e:
-            logger.error(f"Failed to enrich product '{product_name}': {e}")
-            # On error, return partial data
-            return (index, {
-                "name": product_name,
-                "description": "",
-                "category": "",
-                "vendor": "",
-                "price": None,
-                "pricing_type": None,
-                "product_url": None,
-                "sku": None,
-                "metadata": {},
-                "confidence": "low",
-                "error": str(e)
-            })
+        result = enrich_product(product_name)
+        return (index, result)
+
+    def make_error_result(product_name: str, error_msg: str) -> Dict:
+        """Create an error result dict for failed enrichments."""
+        return {
+            "name": product_name,
+            "description": "",
+            "category": "",
+            "vendor": "",
+            "price": None,
+            "pricing_type": None,
+            "product_url": None,
+            "sku": None,
+            "metadata": {},
+            "confidence": "low",
+            "error": error_msg
+        }
 
     # Process in parallel with ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
         futures = {
-            executor.submit(enrich_with_index, i, name): i
+            executor.submit(enrich_with_index, i, name): (i, name)
             for i, name in enumerate(product_names)
         }
 
-        # Collect results as they complete
+        # Collect results as they complete with timeout
         for future in as_completed(futures):
-            index, result = future.result()
-            results[index] = result
+            original_index, product_name = futures[future]
+            try:
+                index, result = future.result(timeout=timeout_per_item)
+                results[index] = result
+            except TimeoutError:
+                logger.error(f"Timeout enriching product '{product_name}'")
+                results[original_index] = make_error_result(product_name, "Enrichment timed out")
+            except Exception as e:
+                logger.error(f"Failed to enrich product '{product_name}': {e}")
+                results[original_index] = make_error_result(product_name, str(e))
 
     return results

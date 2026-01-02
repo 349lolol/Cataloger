@@ -5,7 +5,7 @@ import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
 from app.services import catalog_service, proposal_service
-from app.utils.resilience import safe_int, is_valid_uuid
+from app.utils.resilience import safe_int, is_valid_uuid, validate_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,22 @@ def search_items():
     if not data or 'query' not in data:
         return jsonify({"error": "Query is required"}), 400
 
+    # Issue #3.3: Validate threshold range (0.0 to 1.0)
+    threshold = data.get('threshold', 0.3)
+    if not isinstance(threshold, (int, float)) or threshold < 0.0 or threshold > 1.0:
+        return jsonify({"error": "threshold must be a number between 0.0 and 1.0"}), 400
+
+    # Issue #3.3: Validate limit range (1 to 100 for search to prevent abuse)
+    limit = data.get('limit', 10)
+    if not isinstance(limit, int) or limit < 1 or limit > 100:
+        return jsonify({"error": "limit must be an integer between 1 and 100"}), 400
+
     try:
         results = catalog_service.search_items(
             query=data['query'],
             org_id=g.org_id,
-            threshold=data.get('threshold', 0.3),
-            limit=data.get('limit', 10)
+            threshold=threshold,
+            limit=limit
         )
         return jsonify({"results": results}), 200
     except Exception as e:
@@ -105,6 +115,11 @@ def create_item():
     data = request.get_json()
     if not data or 'name' not in data:
         return jsonify({"error": "Name is required"}), 400
+
+    # Issue #7.4: Validate metadata size to prevent abuse
+    valid, error = validate_metadata(data.get('metadata'))
+    if not valid:
+        return jsonify({"error": error}), 400
 
     try:
         item = catalog_service.create_item(

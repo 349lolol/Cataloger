@@ -69,7 +69,6 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
         if item['id'] not in embedded_item_ids
     ]
 
-    repaired = 0
     failed = 0
     failed_items = []
 
@@ -88,30 +87,31 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
                 'catalog_item_id': item['id'],
                 'embedding': embedding
             })
-            repaired += 1
         except Exception as e:
             failed += 1
             failed_items.append(item['id'])
             logger.error(f"Failed to generate embedding for item {item['id']}: {e}")
 
+    # Track actual successful inserts (not just generation)
+    repaired = 0
+
     # Batch insert all successful embeddings in one query
     if embeddings_to_insert:
         try:
             supabase_admin.table('catalog_item_embeddings').insert(embeddings_to_insert).execute()
+            # Only count as repaired after successful batch insert
+            repaired = len(embeddings_to_insert)
         except Exception as e:
             # If batch insert fails, fall back to individual inserts
             logger.warning(f"Batch insert failed, falling back to individual inserts: {e}")
-            batch_failed = 0
             for emb_data in embeddings_to_insert:
                 try:
                     supabase_admin.table('catalog_item_embeddings').insert(emb_data).execute()
+                    repaired += 1  # Count only successful inserts
                 except Exception as insert_error:
-                    batch_failed += 1
+                    failed += 1
                     failed_items.append(emb_data['catalog_item_id'])
                     logger.error(f"Failed to insert embedding for item {emb_data['catalog_item_id']}: {insert_error}")
-            if batch_failed > 0:
-                repaired -= batch_failed
-                failed += batch_failed
 
     return {
         "total_items": total_items,
