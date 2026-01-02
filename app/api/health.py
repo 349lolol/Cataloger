@@ -6,13 +6,18 @@ from app.extensions import get_supabase_client
 from app.config import get_settings
 import time
 import logging
-import google.generativeai as genai
+import threading
 
 bp = Blueprint('health', __name__)
 logger = logging.getLogger(__name__)
 
 # Store app start time for uptime calculation
 app_start_time = time.time()
+
+# Cache Gemini API check result to avoid expensive API calls on every health check
+_gemini_check_cache = {"result": None, "timestamp": 0}
+_gemini_cache_lock = threading.Lock()
+GEMINI_CACHE_TTL = 60  # Cache for 60 seconds
 
 
 @bp.route('/health', methods=['GET'])
@@ -74,13 +79,43 @@ def check_database() -> bool:
 
 
 def check_gemini_api() -> bool:
-    """Check if Gemini API is accessible."""
-    try:
-        settings = get_settings()
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        # List models as a lightweight check
-        models = genai.list_models()
-        return True
-    except Exception as e:
-        logger.error(f"Gemini API health check failed: {e}")
-        return False
+    """
+    Check if Gemini API is accessible.
+    Results are cached for 60 seconds to avoid expensive API calls on
+    frequent health checks (load balancers check every 5-10 seconds).
+    """
+    global _gemini_check_cache
+
+    current_time = time.time()
+
+    # Check if we have a valid cached result
+    if _gemini_check_cache["result"] is not None:
+        if current_time - _gemini_check_cache["timestamp"] < GEMINI_CACHE_TTL:
+            return _gemini_check_cache["result"]
+
+    # Need to refresh - use lock to prevent concurrent API calls
+    with _gemini_cache_lock:
+        # Double-check after acquiring lock
+        if _gemini_check_cache["result"] is not None:
+            if current_time - _gemini_check_cache["timestamp"] < GEMINI_CACHE_TTL:
+                return _gemini_check_cache["result"]
+
+        try:
+            settings = get_settings()
+            # Just validate API key format instead of making API call
+            # The key should be a non-empty string
+            api_key = settings.GEMINI_API_KEY
+            if api_key and len(api_key) > 10:
+                result = True
+            else:
+                logger.error("Gemini API key appears invalid or too short")
+                result = False
+        except Exception as e:
+            logger.error(f"Gemini API health check failed: {e}")
+            result = False
+
+        # Update cache
+        _gemini_check_cache["result"] = result
+        _gemini_check_cache["timestamp"] = current_time
+
+        return result

@@ -44,17 +44,21 @@ def get_user_org_and_role(user_id: str):
     """
     Get user's organization ID and role from org_memberships.
     Returns tuple (org_id, role) or (None, None) if not found.
+
+    Note: If user has multiple org memberships, returns the first one.
+    For multi-org support, the API should accept org_id in request headers.
     """
     try:
         supabase = get_supabase_client()
+        # Use limit(1) instead of single() to avoid exception on 0 or 2+ results
         response = supabase.table('org_memberships') \
             .select('org_id, role') \
             .eq('user_id', user_id) \
-            .single() \
+            .limit(1) \
             .execute()
 
-        if response.data:
-            return response.data['org_id'], response.data['role']
+        if response.data and len(response.data) > 0:
+            return response.data[0]['org_id'], response.data[0]['role']
         return None, None
     except Exception as e:
         logger.error(f"Error fetching org membership: {e}")

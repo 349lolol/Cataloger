@@ -107,7 +107,16 @@ def validate_metadata(metadata: Any, max_keys: int = 50, max_size_bytes: int = 6
     return True, ""
 
 
-settings = get_settings()
+# Lazy-load settings to avoid module-level initialization issues
+_settings = None
+
+
+def _get_settings():
+    """Get settings lazily to avoid module-level initialization."""
+    global _settings
+    if _settings is None:
+        _settings = get_settings()
+    return _settings
 
 
 # Circuit breakers for external services
@@ -115,6 +124,7 @@ class ServiceCircuitBreakers:
     """Circuit breakers for external service calls."""
 
     def __init__(self):
+        settings = _get_settings()
         fail_max = settings.CIRCUIT_BREAKER_FAIL_MAX
         timeout = settings.CIRCUIT_BREAKER_TIMEOUT
 
@@ -154,7 +164,7 @@ def get_circuit_breakers() -> ServiceCircuitBreakers:
 
 # Retry decorators for different failure scenarios
 
-def retry_on_connection_error(max_attempts: int = 3):
+def retry_on_connection_error(max_attempts: int = None):
     """
     Retry decorator for connection errors with exponential backoff.
 
@@ -164,11 +174,13 @@ def retry_on_connection_error(max_attempts: int = 3):
             ...
 
     Args:
-        max_attempts: Maximum number of retry attempts
+        max_attempts: Maximum number of retry attempts (default from config)
 
     Returns:
         Decorator function
     """
+    if max_attempts is None:
+        max_attempts = _get_settings().RETRY_MAX_ATTEMPTS
     return retry(
         stop=stop_after_attempt(max_attempts),
         wait=wait_exponential(multiplier=1, min=1, max=10),
@@ -178,7 +190,7 @@ def retry_on_connection_error(max_attempts: int = 3):
     )
 
 
-def retry_on_rate_limit(max_attempts: int = 5):
+def retry_on_rate_limit(max_attempts: int = None):
     """
     Retry decorator for rate limit errors with longer backoff.
 
@@ -188,11 +200,13 @@ def retry_on_rate_limit(max_attempts: int = 5):
             ...
 
     Args:
-        max_attempts: Maximum number of retry attempts
+        max_attempts: Maximum number of retry attempts (default from config)
 
     Returns:
         Decorator function
     """
+    if max_attempts is None:
+        max_attempts = _get_settings().RETRY_RATE_LIMIT_ATTEMPTS
     return retry(
         stop=stop_after_attempt(max_attempts),
         wait=wait_exponential(multiplier=2, min=2, max=60),
@@ -235,7 +249,7 @@ def with_circuit_breaker(breaker_name: str):
 
 # Combined decorators for common patterns
 
-def resilient_external_call(breaker_name: str, max_retries: int = 3):
+def resilient_external_call(breaker_name: str, max_retries: int = None):
     """
     Combined decorator for resilient external API calls.
     Includes both retry logic and circuit breaker.
@@ -247,7 +261,7 @@ def resilient_external_call(breaker_name: str, max_retries: int = 3):
 
     Args:
         breaker_name: Circuit breaker to use
-        max_retries: Maximum retry attempts
+        max_retries: Maximum retry attempts (default from config)
 
     Returns:
         Decorator function

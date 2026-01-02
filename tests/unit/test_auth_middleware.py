@@ -94,21 +94,15 @@ class TestAuthMiddleware:
     def test_get_user_org_and_role_success(self, mock_supabase):
         """Test successful org and role retrieval."""
         mock_response = Mock()
-        mock_response.data = {'org_id': 'org-123', 'role': 'admin'}
+        # Now returns a list since we use limit(1) instead of single()
+        mock_response.data = [{'org_id': 'org-123', 'role': 'admin'}]
 
-        mock_execute = Mock()
-        mock_execute.execute.return_value = mock_response
+        mock_query = Mock()
+        mock_query.eq.return_value = mock_query
+        mock_query.limit.return_value = mock_query
+        mock_query.execute.return_value = mock_response
 
-        mock_single = Mock()
-        mock_single.single.return_value = mock_execute
-
-        mock_eq = Mock()
-        mock_eq.eq.return_value = mock_single
-
-        mock_select = Mock()
-        mock_select.select.return_value = mock_eq
-
-        mock_supabase.return_value.table.return_value = mock_select
+        mock_supabase.return_value.table.return_value.select.return_value = mock_query
 
         org_id, role = get_user_org_and_role('user-123')
 
@@ -119,11 +113,11 @@ class TestAuthMiddleware:
     def test_get_user_org_and_role_not_found(self, mock_supabase):
         """Test org retrieval when user has no org membership."""
         mock_response = Mock()
-        mock_response.data = None
+        mock_response.data = []  # Empty list instead of None
 
         mock_query = Mock()
         mock_query.eq.return_value = mock_query
-        mock_query.single.return_value = mock_query
+        mock_query.limit.return_value = mock_query
         mock_query.execute.return_value = mock_response
 
         mock_supabase.return_value.table.return_value.select.return_value = mock_query

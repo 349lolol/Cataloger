@@ -6,7 +6,7 @@ A multi-tenant procurement catalog system with semantic search, proposal-based g
 
 ## Features
 
-- **Semantic Search**: Vector embeddings for intelligent catalog matching using sentence-transformers
+- **Semantic Search**: Vector embeddings for intelligent catalog matching using Google Gemini
 - **Multi-Tenant Architecture**: Organization-level RLS (Row-Level Security) isolation in PostgreSQL
 - **Approval Workflows**: Governance system for catalog changes via proposals
 - **Role-Based Access Control**: Support for requester, reviewer, and admin roles
@@ -17,7 +17,7 @@ A multi-tenant procurement catalog system with semantic search, proposal-based g
 
 - **Backend**: Flask 3.0 (Python)
 - **Database**: Supabase (PostgreSQL + Auth + pgvector)
-- **AI/ML**: SentenceTransformers (all-MiniLM-L6-v2)
+- **AI/ML**: Google Gemini (text-embedding-004, gemini-1.5-flash)
 - **Deployment**: Docker + AWS ECS Fargate
 
 ## Quick Start
@@ -61,6 +61,7 @@ Required environment variables:
    - Execute `supabase/migrations/00003_pgvector_setup.sql`
    - Execute `supabase/migrations/00004_add_product_fields.sql`
    - Execute `supabase/migrations/00005_fix_proposal_rls.sql`
+   - Execute `supabase/migrations/00006_update_embedding_dimension.sql` (required for Gemini embeddings)
 
 ### 4. Seed Data
 

@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     CIRCUIT_BREAKER_FAIL_MAX: int = 5
     CIRCUIT_BREAKER_TIMEOUT: int = 60
 
+    # Retry Configuration (for external API calls)
+    RETRY_MAX_ATTEMPTS: int = 3  # Max retry attempts for connection errors
+    RETRY_RATE_LIMIT_ATTEMPTS: int = 5  # Max retry attempts for rate limit errors
+
     # AWS Configuration (for production deployment)
     USE_AWS_SECRETS: bool = False
     AWS_SECRET_NAME: str = "catalogai/production"
