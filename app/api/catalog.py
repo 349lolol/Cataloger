@@ -206,6 +206,9 @@ def create_item():
             return jsonify({"error": "price cannot be negative"}), 400
         if price > MAX_PRICE:
             return jsonify({"error": f"price cannot exceed {MAX_PRICE}"}), 400
+        # Round to 2 decimal places for currency precision
+        price = round(price, 2)
+        data['price'] = price
 
     # Validate pricing_type
     pricing_type = data.get('pricing_type')

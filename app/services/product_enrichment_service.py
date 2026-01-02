@@ -162,6 +162,9 @@ def enrich_product_batch(
     Uses concurrent processing to significantly improve performance.
     Example: 20 products @ 3s each = 12s total (vs 60s sequential)
 
+    Deduplication: Duplicate product names are only enriched once,
+    saving API calls. Results are copied to all duplicate positions.
+
     Args:
         product_names: List of product names to enrich
         max_workers: Maximum number of concurrent threads (default: 5)
@@ -176,10 +179,26 @@ def enrich_product_batch(
 
     results = [None] * len(product_names)  # Pre-allocate to maintain order
 
-    def enrich_with_index(index: int, product_name: str) -> tuple[int, Dict]:
-        """Enrich product and return with index for ordering."""
-        result = enrich_product(product_name)
-        return (index, result)
+    # Deduplicate: map unique names to their indices
+    unique_names: Dict[str, List[int]] = {}
+    for i, name in enumerate(product_names):
+        normalized = name.strip().lower()
+        if normalized not in unique_names:
+            unique_names[normalized] = []
+        unique_names[normalized].append(i)
+
+    # Build list of unique items to process (use first occurrence's original name)
+    unique_items = []
+    for normalized, indices in unique_names.items():
+        original_name = product_names[indices[0]]
+        unique_items.append((normalized, original_name, indices))
+
+    logger.info(f"Batch enrichment: {len(product_names)} items, {len(unique_items)} unique")
+
+    def enrich_with_key(normalized: str, original_name: str) -> tuple[str, Dict]:
+        """Enrich product and return with normalized key for mapping."""
+        result = enrich_product(original_name)
+        return (normalized, result)
 
     def make_error_result(product_name: str, error_msg: str) -> Dict:
         """Create an error result dict for failed enrichments."""
@@ -197,25 +216,35 @@ def enrich_product_batch(
             "error": error_msg
         }
 
-    # Process in parallel with ThreadPoolExecutor
+    # Process unique items in parallel with ThreadPoolExecutor
+    enriched_cache: Dict[str, Dict] = {}
+
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
+        # Submit tasks for unique items only
         futures = {
-            executor.submit(enrich_with_index, i, name): (i, name)
-            for i, name in enumerate(product_names)
+            executor.submit(enrich_with_key, normalized, original_name): (normalized, original_name)
+            for normalized, original_name, _ in unique_items
         }
 
         # Collect results as they complete with timeout
         for future in as_completed(futures):
-            original_index, product_name = futures[future]
+            normalized, original_name = futures[future]
             try:
-                index, result = future.result(timeout=timeout_per_item)
-                results[index] = result
+                key, result = future.result(timeout=timeout_per_item)
+                enriched_cache[key] = result
             except TimeoutError:
-                logger.error(f"Timeout enriching product '{product_name}'")
-                results[original_index] = make_error_result(product_name, "Enrichment timed out")
+                logger.error(f"Timeout enriching product '{original_name}'")
+                enriched_cache[normalized] = make_error_result(original_name, "Enrichment timed out")
             except Exception as e:
-                logger.error(f"Failed to enrich product '{product_name}': {e}")
-                results[original_index] = make_error_result(product_name, str(e))
+                logger.error(f"Failed to enrich product '{original_name}': {e}")
+                enriched_cache[normalized] = make_error_result(original_name, str(e))
+
+    # Map results back to all original indices (including duplicates)
+    for normalized, indices in unique_names.items():
+        result = enriched_cache.get(normalized)
+        if result:
+            for idx in indices:
+                # Copy result to avoid shared mutation issues
+                results[idx] = result.copy()
 
     return results
