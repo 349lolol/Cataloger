@@ -6,6 +6,11 @@ import json
 from unittest.mock import Mock, patch
 from app import create_app
 
+# Test UUIDs (valid format for UUID validation)
+TEST_REQUEST_UUID = '11111111-2222-3333-4444-555555555555'
+TEST_ORG_UUID = '87654321-4321-4321-4321-cba987654321'
+TEST_USER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+
 
 class TestRequestsAPI:
     """Test requests API endpoints."""
@@ -99,28 +104,28 @@ class TestRequestsAPI:
         """Test getting a specific request."""
         # Setup auth mocks
         mock_user = Mock()
-        mock_user.id = "user-123"
+        mock_user.id = TEST_USER_UUID
         mock_get_user.return_value = mock_user
-        mock_get_org.return_value = ("org-123", "requester")
+        mock_get_org.return_value = (TEST_ORG_UUID, "requester")
 
         # Setup service mock
         mock_service.get_request.return_value = {
-            "id": "request-123",
-            "org_id": "org-123",
+            "id": TEST_REQUEST_UUID,
+            "org_id": TEST_ORG_UUID,
             "search_query": "laptop",
             "status": "pending"
         }
 
         # Make request
         response = client.get(
-            '/api/requests/request-123',
+            f'/api/requests/{TEST_REQUEST_UUID}',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Assertions
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["id"] == "request-123"
+        assert data["id"] == TEST_REQUEST_UUID
 
     @patch('app.api.requests.request_service')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -128,21 +133,22 @@ class TestRequestsAPI:
     def test_review_request_approve(self, mock_get_user, mock_get_org, mock_service, client):
         """Test approving a request via review endpoint."""
         # Setup auth mocks - reviewer role
+        reviewer_uuid = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
         mock_user = Mock()
-        mock_user.id = "reviewer-123"
+        mock_user.id = reviewer_uuid
         mock_get_user.return_value = mock_user
-        mock_get_org.return_value = ("org-123", "reviewer")
+        mock_get_org.return_value = (TEST_ORG_UUID, "reviewer")
 
         # Setup service mock
         mock_service.review_request.return_value = {
-            "id": "request-123",
+            "id": TEST_REQUEST_UUID,
             "status": "approved",
-            "reviewed_by": "reviewer-123"
+            "reviewed_by": reviewer_uuid
         }
 
         # Make request
         response = client.post(
-            '/api/requests/request-123/review',
+            f'/api/requests/{TEST_REQUEST_UUID}/review',
             headers={'Authorization': 'Bearer test-token'},
             data=json.dumps({
                 "status": "approved",
@@ -162,21 +168,22 @@ class TestRequestsAPI:
     def test_review_request_reject(self, mock_get_user, mock_get_org, mock_service, client):
         """Test rejecting a request via review endpoint."""
         # Setup auth mocks - admin role
+        admin_uuid = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
         mock_user = Mock()
-        mock_user.id = "admin-123"
+        mock_user.id = admin_uuid
         mock_get_user.return_value = mock_user
-        mock_get_org.return_value = ("org-123", "admin")
+        mock_get_org.return_value = (TEST_ORG_UUID, "admin")
 
         # Setup service mock
         mock_service.review_request.return_value = {
-            "id": "request-123",
+            "id": TEST_REQUEST_UUID,
             "status": "rejected",
-            "reviewed_by": "admin-123"
+            "reviewed_by": admin_uuid
         }
 
         # Make request
         response = client.post(
-            '/api/requests/request-123/review',
+            f'/api/requests/{TEST_REQUEST_UUID}/review',
             headers={'Authorization': 'Bearer test-token'},
             data=json.dumps({
                 "status": "rejected",
@@ -196,13 +203,13 @@ class TestRequestsAPI:
         """Test that review endpoint requires reviewer or admin role."""
         # Setup auth mocks - requester role (insufficient)
         mock_user = Mock()
-        mock_user.id = "user-123"
+        mock_user.id = TEST_USER_UUID
         mock_get_user.return_value = mock_user
-        mock_get_org.return_value = ("org-123", "requester")
+        mock_get_org.return_value = (TEST_ORG_UUID, "requester")
 
-        # Make request
+        # Make request - note: still uses test UUID since we test role check, not UUID validation
         response = client.post(
-            '/api/requests/request-123/review',
+            f'/api/requests/{TEST_REQUEST_UUID}/review',
             headers={'Authorization': 'Bearer test-token'},
             data=json.dumps({
                 "status": "approved",

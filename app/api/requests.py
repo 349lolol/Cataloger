@@ -1,10 +1,13 @@
 """
 Requests API endpoints for procurement request management.
 """
+import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
 from app.services import request_service
+from app.utils.resilience import safe_int, is_valid_uuid
 
+logger = logging.getLogger(__name__)
 bp = Blueprint('requests', __name__)
 
 
@@ -34,7 +37,8 @@ def create_request():
         )
         return jsonify(req), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Create request failed: {e}")
+        return jsonify({"error": "Failed to create request"}), 500
 
 
 @bp.route('/requests', methods=['GET'])
@@ -47,7 +51,7 @@ def list_requests():
     try:
         status = request.args.get('status')
         created_by = request.args.get('created_by')
-        limit = int(request.args.get('limit', 100))
+        limit = safe_int(request.args.get('limit'), default=100, min_val=1, max_val=1000)
 
         requests_list = request_service.list_requests(
             org_id=g.org_id,
@@ -57,7 +61,8 @@ def list_requests():
         )
         return jsonify({"requests": requests_list}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"List requests failed: {e}")
+        return jsonify({"error": "Failed to retrieve requests"}), 500
 
 
 @bp.route('/requests/<request_id>', methods=['GET'])
@@ -67,6 +72,10 @@ def get_request(request_id):
     Get a single request by ID.
     GET /api/requests/:id
     """
+    # Issue #23: Validate UUID format
+    if not is_valid_uuid(request_id):
+        return jsonify({"error": "Invalid request ID format"}), 400
+
     try:
         req = request_service.get_request(request_id)
 
@@ -76,7 +85,8 @@ def get_request(request_id):
 
         return jsonify(req), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Get request failed for {request_id}: {e}")
+        return jsonify({"error": "Request not found or unavailable"}), 500
 
 
 @bp.route('/requests/<request_id>/review', methods=['POST'])
@@ -121,6 +131,10 @@ def review_request(request_id):
     2. Approve WITH proposal: Request marked approved + proposal auto-created
     3. Reject: Request marked rejected (create_proposal ignored)
     """
+    # Issue #23: Validate UUID format
+    if not is_valid_uuid(request_id):
+        return jsonify({"error": "Invalid request ID format"}), 400
+
     data = request.get_json()
     if not data or 'status' not in data:
         return jsonify({"error": "status is required"}), 400
@@ -134,8 +148,12 @@ def review_request(request_id):
             reviewed_by=g.user_id,
             status=data['status'],
             review_notes=data.get('review_notes'),
-            create_proposal=data.get('create_proposal')
+            create_proposal=data.get('create_proposal'),
+            org_id=g.org_id  # Issue #9: Pass org_id for authorization
         )
         return jsonify(req), 200
+    except PermissionError as e:
+        return jsonify({"error": "Forbidden"}), 403
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Review request failed for {request_id}: {e}")
+        return jsonify({"error": "Failed to process review"}), 500

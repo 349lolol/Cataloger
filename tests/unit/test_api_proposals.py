@@ -6,6 +6,11 @@ import json
 from unittest.mock import Mock, patch
 from app import create_app
 
+# Test UUIDs (valid format for UUID validation)
+TEST_PROPOSAL_UUID = '22222222-3333-4444-5555-666666666666'
+TEST_ORG_UUID = '87654321-4321-4321-4321-cba987654321'
+TEST_USER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+
 
 class TestProposalsAPI:
     """Test proposals API endpoints."""
@@ -181,48 +186,49 @@ class TestProposalsAPI:
         """Test getting a specific proposal."""
         # Setup mocks
         user_mock = Mock()
-        user_mock.id = "user-123"
+        user_mock.id = TEST_USER_UUID
         mock_get_user.return_value = user_mock
-        mock_org_role.return_value = ("org-123", "reviewer")
+        mock_org_role.return_value = (TEST_ORG_UUID, "reviewer")
 
         mock_service.get_proposal.return_value = {
-            "id": "proposal-123",
+            "id": TEST_PROPOSAL_UUID,
             "proposal_type": "ADD_ITEM",
             "status": "open",
-            "org_id": "org-123"
+            "org_id": TEST_ORG_UUID
         }
 
         # Make request
         response = client.get(
-            '/api/proposals/proposal-123',
+            f'/api/proposals/{TEST_PROPOSAL_UUID}',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         # Assertions
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["id"] == "proposal-123"
+        assert data["id"] == TEST_PROPOSAL_UUID
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_approve_proposal_as_admin(self, mock_service, mock_org_role, mock_get_user, client):
         """Test approving a proposal as admin."""
+        admin_uuid = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
         # Setup mocks
         user_mock = Mock()
-        user_mock.id = "admin-123"
+        user_mock.id = admin_uuid
         mock_get_user.return_value = user_mock
-        mock_org_role.return_value = ("org-123", "admin")
+        mock_org_role.return_value = (TEST_ORG_UUID, "admin")
 
         mock_service.approve_proposal.return_value = {
-            "id": "proposal-123",
+            "id": TEST_PROPOSAL_UUID,
             "status": "merged",
-            "reviewed_by": "admin-123"
+            "reviewed_by": admin_uuid
         }
 
         # Make request
         response = client.post(
-            '/api/proposals/proposal-123/approve',
+            f'/api/proposals/{TEST_PROPOSAL_UUID}/approve',
             headers={'Authorization': 'Bearer test-token'},
             data=json.dumps({"review_notes": "Looks good"}),
             content_type='application/json'
@@ -238,21 +244,22 @@ class TestProposalsAPI:
     @patch('app.api.proposals.proposal_service')
     def test_reject_proposal_as_reviewer(self, mock_service, mock_org_role, mock_get_user, client):
         """Test rejecting a proposal as reviewer."""
+        reviewer_uuid = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
         # Setup mocks
         user_mock = Mock()
-        user_mock.id = "reviewer-123"
+        user_mock.id = reviewer_uuid
         mock_get_user.return_value = user_mock
-        mock_org_role.return_value = ("org-123", "reviewer")
+        mock_org_role.return_value = (TEST_ORG_UUID, "reviewer")
 
         mock_service.reject_proposal.return_value = {
-            "id": "proposal-123",
+            "id": TEST_PROPOSAL_UUID,
             "status": "rejected",
-            "reviewed_by": "reviewer-123"
+            "reviewed_by": reviewer_uuid
         }
 
         # Make request
         response = client.post(
-            '/api/proposals/proposal-123/reject',
+            f'/api/proposals/{TEST_PROPOSAL_UUID}/reject',
             headers={'Authorization': 'Bearer test-token'},
             data=json.dumps({"review_notes": "Not needed"}),
             content_type='application/json'
@@ -270,13 +277,13 @@ class TestProposalsAPI:
         """Test that only admin/reviewer can approve proposals."""
         # Setup mocks - regular requester role (should be forbidden)
         user_mock = Mock()
-        user_mock.id = "user-123"
+        user_mock.id = TEST_USER_UUID
         mock_get_user.return_value = user_mock
-        mock_org_role.return_value = ("org-123", "requester")
+        mock_org_role.return_value = (TEST_ORG_UUID, "requester")
 
         # Make request
         response = client.post(
-            '/api/proposals/proposal-123/approve',
+            f'/api/proposals/{TEST_PROPOSAL_UUID}/approve',
             headers={'Authorization': 'Bearer test-token'},
             data=json.dumps({"review_notes": "Trying to approve"}),
             content_type='application/json'

@@ -5,6 +5,11 @@ import pytest
 import json
 from unittest.mock import patch, Mock
 
+# Test UUIDs (valid format for UUID validation)
+TEST_ITEM_UUID = '12345678-1234-1234-1234-123456789abc'
+TEST_ORG_UUID = '87654321-4321-4321-4321-cba987654321'
+TEST_USER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
+
 
 class TestCatalogAPI:
     """Test catalog API endpoints."""
@@ -176,38 +181,39 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_item_success(self, mock_org, mock_user, mock_get, client):
         """Test getting single item."""
-        mock_user.return_value = Mock(id='user-123')
-        mock_org.return_value = ('org-123', 'member')
+        mock_user.return_value = Mock(id=TEST_USER_UUID)
+        mock_org.return_value = (TEST_ORG_UUID, 'member')
         mock_get.return_value = {
-            'id': 'item-123',
+            'id': TEST_ITEM_UUID,
             'name': 'Test Item',
-            'org_id': 'org-123'
+            'org_id': TEST_ORG_UUID
         }
 
         response = client.get(
-            '/api/catalog/items/item-123',
+            f'/api/catalog/items/{TEST_ITEM_UUID}',
             headers={'Authorization': 'Bearer test-token'}
         )
 
         assert response.status_code == 200
         data = response.get_json()
-        assert data['id'] == 'item-123'
+        assert data['id'] == TEST_ITEM_UUID
 
     @patch('app.api.catalog.catalog_service.get_item')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_item_wrong_org(self, mock_org, mock_user, mock_get, client):
         """Test getting item from different org."""
-        mock_user.return_value = Mock(id='user-123')
-        mock_org.return_value = ('org-123', 'member')
+        other_org_uuid = 'cccccccc-dddd-eeee-ffff-000000000000'
+        mock_user.return_value = Mock(id=TEST_USER_UUID)
+        mock_org.return_value = (TEST_ORG_UUID, 'member')
         mock_get.return_value = {
-            'id': 'item-123',
+            'id': TEST_ITEM_UUID,
             'name': 'Test Item',
-            'org_id': 'other-org'
+            'org_id': other_org_uuid
         }
 
         response = client.get(
-            '/api/catalog/items/item-123',
+            f'/api/catalog/items/{TEST_ITEM_UUID}',
             headers={'Authorization': 'Bearer test-token'}
         )
 
@@ -218,12 +224,13 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_item_not_found(self, mock_org, mock_user, mock_get, client):
         """Test getting non-existent item."""
-        mock_user.return_value = Mock(id='user-123')
-        mock_org.return_value = ('org-123', 'member')
+        nonexistent_uuid = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
+        mock_user.return_value = Mock(id=TEST_USER_UUID)
+        mock_org.return_value = (TEST_ORG_UUID, 'member')
         mock_get.side_effect = Exception("Item not found")
 
         response = client.get(
-            '/api/catalog/items/nonexistent',
+            f'/api/catalog/items/{nonexistent_uuid}',
             headers={'Authorization': 'Bearer test-token'}
         )
 

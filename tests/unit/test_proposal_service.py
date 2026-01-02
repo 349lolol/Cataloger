@@ -111,10 +111,9 @@ class TestProposalService:
 
     @patch('app.services.proposal_service.get_proposal')
     @patch('app.services.proposal_service.get_supabase_client')
-    @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.proposal_service.create_item')
     @patch('app.services.audit_service.log_event')
-    def test_approve_add_item_proposal(self, mock_audit, mock_create_item, mock_admin_getter, mock_supabase_getter, mock_get_proposal):
+    def test_approve_add_item_proposal(self, mock_audit, mock_create_item, mock_supabase_getter, mock_get_proposal):
         """Test approving ADD_ITEM proposal and auto-merging."""
         # Mock get_proposal to return pending first, then merged
         # First call: get pending proposal to validate
@@ -145,9 +144,6 @@ class TestProposalService:
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
 
-        mock_admin = Mock()
-        mock_admin_getter.return_value = mock_admin
-
         # Mock update to approved, then merged
         mock_approved_response = Mock()
         mock_approved_response.data = [{
@@ -176,7 +172,7 @@ class TestProposalService:
         mock_query.eq.return_value = mock_query
         mock_query.execute.side_effect = [mock_approved_response, mock_merged_response]
 
-        mock_admin.table.return_value.update.return_value = mock_query
+        mock_supabase.table.return_value.update.return_value = mock_query
 
         # Approve proposal
         result = proposal_service.approve_proposal(
@@ -264,15 +260,9 @@ class TestProposalService:
         assert len(result) == 2
         assert all(p["status"] == "pending" for p in result)
 
-    @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.proposal_service.update_item')
-    @patch('app.services.audit_service.log_event')
-    def test_merge_deprecate_item_proposal(self, mock_audit, mock_update_item, mock_admin_getter):
+    def test_merge_deprecate_item_proposal(self, mock_update_item):
         """Test merging DEPRECATE_ITEM proposal."""
-        # Setup mock
-        mock_admin = Mock()
-        mock_admin_getter.return_value = mock_admin
-
         proposal = {
             "id": "proposal-125",
             "org_id": "org-123",
@@ -280,16 +270,6 @@ class TestProposalService:
             "replacing_item_id": "item-old-123",
             "proposed_by": "user-123"
         }
-
-        mock_update_response = Mock()
-        mock_update_response.data = [{"id": "proposal-125", "status": "merged"}]
-
-        # Create a mock query that supports chaining
-        mock_query = Mock()
-        mock_query.eq.return_value = mock_query
-        mock_query.execute.return_value = mock_update_response
-
-        mock_admin.table.return_value.update.return_value = mock_query
 
         mock_update_item.return_value = {"id": "item-old-123", "status": "deprecated"}
 

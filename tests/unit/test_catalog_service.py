@@ -273,7 +273,7 @@ class TestCatalogService:
 
         mock_admin.table.return_value = mock_table
 
-        with pytest.raises(Exception, match="Embedding generation failed"):
+        with pytest.raises(Exception, match="Item creation failed"):
             catalog_service.create_item(
                 org_id="org-123",
                 name="Test Item",

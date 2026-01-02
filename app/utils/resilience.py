@@ -12,10 +12,63 @@ from tenacity import (
 from pybreaker import CircuitBreaker, CircuitBreakerError
 from app.config import get_settings
 import logging
-from typing import Callable, Any
+from typing import Callable, Any, Optional
 from functools import wraps
 
 logger = logging.getLogger(__name__)
+
+
+def safe_int(value: Any, default: int, min_val: Optional[int] = None, max_val: Optional[int] = None) -> int:
+    """
+    Safely convert a value to int with bounds checking.
+
+    Args:
+        value: Value to convert (can be str, int, None, etc.)
+        default: Default value if conversion fails
+        min_val: Optional minimum allowed value
+        max_val: Optional maximum allowed value
+
+    Returns:
+        Converted integer within bounds, or default on failure
+
+    Example:
+        limit = safe_int(request.args.get('limit'), default=100, min_val=1, max_val=1000)
+    """
+    try:
+        result = int(value) if value is not None else default
+    except (ValueError, TypeError):
+        result = default
+
+    if min_val is not None and result < min_val:
+        result = min_val
+    if max_val is not None and result > max_val:
+        result = max_val
+
+    return result
+
+
+def is_valid_uuid(value: str) -> bool:
+    """
+    Check if a string is a valid UUID format.
+
+    Args:
+        value: String to validate
+
+    Returns:
+        True if valid UUID format, False otherwise
+
+    Example:
+        if not is_valid_uuid(item_id):
+            return jsonify({"error": "Invalid item ID format"}), 400
+    """
+    import re
+    uuid_pattern = re.compile(
+        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
+        re.IGNORECASE
+    )
+    return bool(uuid_pattern.match(str(value))) if value else False
+
+
 settings = get_settings()
 
 
@@ -30,21 +83,21 @@ class ServiceCircuitBreakers:
         # Gemini API circuit breaker
         self.gemini = CircuitBreaker(
             fail_max=fail_max,
-            timeout_duration=timeout,
+            reset_timeout=timeout,
             name="gemini_api"
         )
 
         # Supabase circuit breaker
         self.supabase = CircuitBreaker(
             fail_max=fail_max,
-            timeout_duration=timeout,
+            reset_timeout=timeout,
             name="supabase"
         )
 
         # Redis circuit breaker
         self.redis = CircuitBreaker(
             fail_max=fail_max,
-            timeout_duration=timeout,
+            reset_timeout=timeout,
             name="redis"
         )
 
@@ -160,10 +213,16 @@ def resilient_external_call(breaker_name: str, max_retries: int = 3):
 
     Returns:
         Decorator function
+
+    Decorator Order:
+        retry(circuit_breaker(func)) - Circuit breaker is innermost,
+        so failed calls count toward the breaker. Retries happen outside,
+        allowing recovery attempts before the breaker opens.
     """
     def decorator(func: Callable) -> Callable:
-        # Apply decorators in order: circuit breaker -> retry -> function
-        func = retry_on_connection_error(max_retries)(func)
-        func = with_circuit_breaker(breaker_name)(func)
-        return func
+        # Issue #41: Correct order - circuit breaker innermost, retry outermost
+        # This ensures: 1) failures count toward breaker, 2) retries can recover
+        wrapped = with_circuit_breaker(breaker_name)(func)
+        wrapped = retry_on_connection_error(max_retries)(wrapped)
+        return wrapped
     return decorator

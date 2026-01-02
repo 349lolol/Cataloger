@@ -1,10 +1,13 @@
 """
 Proposals API endpoints for catalog change governance.
 """
+import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
 from app.services import proposal_service
+from app.utils.resilience import safe_int, is_valid_uuid
 
+logger = logging.getLogger(__name__)
 bp = Blueprint('proposals', __name__)
 
 
@@ -53,7 +56,8 @@ def create_proposal():
         )
         return jsonify(proposal), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Create proposal failed: {e}")
+        return jsonify({"error": "Failed to create proposal"}), 500
 
 
 @bp.route('/proposals', methods=['GET'])
@@ -65,7 +69,7 @@ def list_proposals():
     """
     try:
         status = request.args.get('status')
-        limit = int(request.args.get('limit', 100))
+        limit = safe_int(request.args.get('limit'), default=100, min_val=1, max_val=1000)
 
         proposals = proposal_service.list_proposals(
             org_id=g.org_id,
@@ -74,7 +78,8 @@ def list_proposals():
         )
         return jsonify({"proposals": proposals}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"List proposals failed: {e}")
+        return jsonify({"error": "Failed to retrieve proposals"}), 500
 
 
 @bp.route('/proposals/<proposal_id>', methods=['GET'])
@@ -84,6 +89,10 @@ def get_proposal(proposal_id):
     Get a single proposal by ID.
     GET /api/proposals/:id
     """
+    # Issue #23: Validate UUID format
+    if not is_valid_uuid(proposal_id):
+        return jsonify({"error": "Invalid proposal ID format"}), 400
+
     try:
         proposal = proposal_service.get_proposal(proposal_id)
 
@@ -93,7 +102,8 @@ def get_proposal(proposal_id):
 
         return jsonify(proposal), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Get proposal failed for {proposal_id}: {e}")
+        return jsonify({"error": "Proposal not found or unavailable"}), 500
 
 
 @bp.route('/proposals/<proposal_id>/approve', methods=['POST'])
@@ -107,17 +117,25 @@ def approve_proposal(proposal_id):
         "review_notes": "..."
     }
     """
+    # Issue #23: Validate UUID format
+    if not is_valid_uuid(proposal_id):
+        return jsonify({"error": "Invalid proposal ID format"}), 400
+
     data = request.get_json() or {}
 
     try:
         proposal = proposal_service.approve_proposal(
             proposal_id=proposal_id,
             reviewed_by=g.user_id,
-            review_notes=data.get('review_notes')
+            review_notes=data.get('review_notes'),
+            org_id=g.org_id  # Issue #9: Pass org_id for authorization
         )
         return jsonify(proposal), 200
+    except PermissionError as e:
+        return jsonify({"error": "Forbidden"}), 403
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Approve proposal failed for {proposal_id}: {e}")
+        return jsonify({"error": "Failed to approve proposal"}), 500
 
 
 @bp.route('/proposals/<proposal_id>/reject', methods=['POST'])
@@ -131,14 +149,22 @@ def reject_proposal(proposal_id):
         "review_notes": "..."
     }
     """
+    # Issue #23: Validate UUID format
+    if not is_valid_uuid(proposal_id):
+        return jsonify({"error": "Invalid proposal ID format"}), 400
+
     data = request.get_json() or {}
 
     try:
         proposal = proposal_service.reject_proposal(
             proposal_id=proposal_id,
             reviewed_by=g.user_id,
-            review_notes=data.get('review_notes')
+            review_notes=data.get('review_notes'),
+            org_id=g.org_id  # Issue #9: Pass org_id for authorization
         )
         return jsonify(proposal), 200
+    except PermissionError as e:
+        return jsonify({"error": "Forbidden"}), 403
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Reject proposal failed for {proposal_id}: {e}")
+        return jsonify({"error": "Failed to reject proposal"}), 500

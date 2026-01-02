@@ -2,10 +2,12 @@
 Product enrichment API endpoints.
 Uses AI to automatically populate product fields from a product name.
 """
+import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth
 from app.services.product_enrichment_service import enrich_product, enrich_product_batch
 
+logger = logging.getLogger(__name__)
 bp = Blueprint('products', __name__)
 
 
@@ -64,9 +66,12 @@ def enrich_product_endpoint():
         return jsonify(enriched_data), 200
 
     except ValueError as e:
+        # Validation errors are safe to expose
         return jsonify({"error": f"Validation error: {str(e)}"}), 400
     except Exception as e:
-        return jsonify({"error": f"Enrichment failed: {str(e)}"}), 500
+        # Issue #6: Log internal errors, return safe message
+        logger.exception(f"Product enrichment failed: {e}")
+        return jsonify({"error": "Product enrichment temporarily unavailable"}), 500
 
 
 @bp.route('/products/enrich-batch', methods=['POST'])
@@ -112,4 +117,6 @@ def enrich_product_batch_endpoint():
         return jsonify({"results": results}), 200
 
     except Exception as e:
-        return jsonify({"error": f"Batch enrichment failed: {str(e)}"}), 500
+        # Issue #6: Log internal errors, return safe message
+        logger.exception(f"Batch enrichment failed: {e}")
+        return jsonify({"error": "Batch enrichment temporarily unavailable"}), 500

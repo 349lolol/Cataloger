@@ -148,9 +148,9 @@ def search_catalog(query: str, limit: int = 10, threshold: float = 0.3) -> Dict[
         search_catalog("ergonomic office chair", limit=5)
     """
     return _api_call(
-        'GET',
+        'POST',
         '/api/catalog/search',
-        params={'q': query, 'limit': limit, 'threshold': threshold}
+        json={'query': query, 'limit': limit, 'threshold': threshold}
     )
 
 

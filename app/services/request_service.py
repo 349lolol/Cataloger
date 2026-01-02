@@ -3,7 +3,7 @@ Request service for managing procurement requests.
 Requests represent the search → approval workflow.
 """
 from typing import List, Dict, Optional, Any
-from app.extensions import get_supabase_client, get_supabase_admin
+from app.extensions import get_supabase_client
 from app.services.audit_service import log_event
 
 
@@ -172,7 +172,8 @@ def review_request(
     reviewed_by: str,
     status: str,
     review_notes: Optional[str] = None,
-    create_proposal: Optional[Dict] = None
+    create_proposal: Optional[Dict] = None,
+    org_id: Optional[str] = None
 ) -> Dict:
     """
     Approve or reject a request.
@@ -225,10 +226,16 @@ def review_request(
     if not current_request:
         raise Exception("Request not found")
 
+    # Issue #9: Validate org_id matches if provided (defense in depth)
+    if org_id and current_request['org_id'] != org_id:
+        raise PermissionError("Cannot review request from different organization")
+
     # Only pending requests can be reviewed
     if current_request['status'] != 'pending':
         raise Exception(f"Only pending requests can be reviewed (current status: {current_request['status']})")
 
+    # Issue #7: Prevent race condition by including status check in update query
+    # This ensures atomic check-and-update (optimistic locking)
     supabase = get_supabase_client()
     response = supabase.table('requests') \
         .update({
@@ -238,10 +245,12 @@ def review_request(
             'reviewed_at': 'now()'
         }) \
         .eq('id', request_id) \
+        .eq('status', 'pending') \
         .execute()
 
     if not response.data:
-        raise Exception("Failed to review request")
+        # Either request not found or status changed (race condition)
+        raise Exception("Failed to review request - it may have been already reviewed")
 
     request = response.data[0]
 

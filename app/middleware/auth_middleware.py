@@ -2,9 +2,12 @@
 Authentication and authorization middleware for Flask routes.
 Handles JWT validation and role-based access control.
 """
+import logging
 from functools import wraps
 from flask import request, g, jsonify
 from app.extensions import get_supabase_client
+
+logger = logging.getLogger(__name__)
 
 
 def get_user_from_token():
@@ -29,7 +32,7 @@ def get_user_from_token():
         response = supabase.auth.get_user(token)
         return response.user if response else None
     except Exception as e:
-        print(f"Token validation error: {e}")
+        logger.error(f"Token validation error: {e}")
         return None
 
 
@@ -54,7 +57,7 @@ def get_user_org_and_role(user_id: str):
             return response.data['org_id'], response.data['role']
         return None, None
     except Exception as e:
-        print(f"Error fetching org membership: {e}")
+        logger.error(f"Error fetching org membership: {e}")
         return None, None
 
 

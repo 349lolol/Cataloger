@@ -3,7 +3,7 @@ Proposal service for managing catalog change proposals.
 Implements governance workflow for adding, replacing, or deprecating items.
 """
 from typing import List, Dict, Optional
-from app.extensions import get_supabase_client, get_supabase_admin
+from app.extensions import get_supabase_client
 from app.services.audit_service import log_event
 from app.services.catalog_service import create_item, update_item
 
@@ -150,7 +150,8 @@ def list_proposals(
 def approve_proposal(
     proposal_id: str,
     reviewed_by: str,
-    review_notes: Optional[str] = None
+    review_notes: Optional[str] = None,
+    org_id: Optional[str] = None
 ) -> Dict:
     """
     Approve a proposal and AUTOMATICALLY merge it into the catalog.
@@ -185,12 +186,17 @@ def approve_proposal(
     if not proposal:
         raise Exception("Proposal not found")
 
+    # Issue #9: Validate org_id matches if provided (defense in depth)
+    if org_id and proposal['org_id'] != org_id:
+        raise PermissionError("Cannot approve proposal from different organization")
+
     if proposal['status'] != 'pending':
         raise Exception("Only pending proposals can be approved")
 
-    # Mark as approved
+    # Issue #8: Prevent race condition by including status check in update query
+    # This ensures atomic check-and-update (optimistic locking)
     supabase = get_supabase_client()
-    supabase.table('proposals') \
+    response = supabase.table('proposals') \
         .update({
             'status': 'approved',
             'reviewed_by': reviewed_by,
@@ -198,7 +204,11 @@ def approve_proposal(
             'reviewed_at': 'now()'
         }) \
         .eq('id', proposal_id) \
+        .eq('status', 'pending') \
         .execute()
+
+    if not response.data:
+        raise Exception("Failed to approve proposal - it may have been already processed")
 
     # Execute merge logic based on proposal type
     if proposal['proposal_type'] == 'ADD_ITEM':
@@ -233,16 +243,22 @@ def approve_proposal(
 def reject_proposal(
     proposal_id: str,
     reviewed_by: str,
-    review_notes: Optional[str] = None
+    review_notes: Optional[str] = None,
+    org_id: Optional[str] = None
 ) -> Dict:
     """Reject a proposal."""
     proposal = get_proposal(proposal_id)
     if not proposal:
         raise Exception("Proposal not found")
 
+    # Issue #9: Validate org_id matches if provided (defense in depth)
+    if org_id and proposal['org_id'] != org_id:
+        raise PermissionError("Cannot reject proposal from different organization")
+
     if proposal['status'] != 'pending':
         raise Exception("Only pending proposals can be rejected")
 
+    # Issue #8: Prevent race condition by including status check in update query
     supabase = get_supabase_client()
     response = supabase.table('proposals') \
         .update({
@@ -252,7 +268,11 @@ def reject_proposal(
             'reviewed_at': 'now()'
         }) \
         .eq('id', proposal_id) \
+        .eq('status', 'pending') \
         .execute()
+
+    if not response.data:
+        raise Exception("Failed to reject proposal - it may have been already processed")
 
     # Log audit event
     log_event(

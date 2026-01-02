@@ -1,11 +1,14 @@
 """
 Catalog service for managing catalog items and semantic search.
 """
+import logging
 from typing import List, Dict, Optional
 from uuid import UUID
 from app.extensions import get_supabase_client, get_supabase_admin
 from app.services.embedding_service import encode_text, encode_catalog_item
 from app.services.audit_service import log_event
+
+logger = logging.getLogger(__name__)
 
 
 def check_and_repair_embeddings(org_id: str) -> Dict:
@@ -70,7 +73,10 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
     failed = 0
     failed_items = []
 
-    # Repair missing embeddings
+    # Issue #21: Batch embeddings generation and insertion to reduce N+1 queries
+    # Generate embeddings first, then batch insert to database
+    embeddings_to_insert = []
+
     for item in items_without_embeddings:
         try:
             embedding = encode_catalog_item(
@@ -78,15 +84,34 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
                 item.get('description', ''),
                 item.get('category', '')
             )
-            supabase_admin.table('catalog_item_embeddings').insert({
+            embeddings_to_insert.append({
                 'catalog_item_id': item['id'],
                 'embedding': embedding
-            }).execute()
+            })
             repaired += 1
         except Exception as e:
             failed += 1
             failed_items.append(item['id'])
-            print(f"Failed to repair embedding for item {item['id']}: {e}")
+            logger.error(f"Failed to generate embedding for item {item['id']}: {e}")
+
+    # Batch insert all successful embeddings in one query
+    if embeddings_to_insert:
+        try:
+            supabase_admin.table('catalog_item_embeddings').insert(embeddings_to_insert).execute()
+        except Exception as e:
+            # If batch insert fails, fall back to individual inserts
+            logger.warning(f"Batch insert failed, falling back to individual inserts: {e}")
+            batch_failed = 0
+            for emb_data in embeddings_to_insert:
+                try:
+                    supabase_admin.table('catalog_item_embeddings').insert(emb_data).execute()
+                except Exception as insert_error:
+                    batch_failed += 1
+                    failed_items.append(emb_data['catalog_item_id'])
+                    logger.error(f"Failed to insert embedding for item {emb_data['catalog_item_id']}: {insert_error}")
+            if batch_failed > 0:
+                repaired -= batch_failed
+                failed += batch_failed
 
     return {
         "total_items": total_items,
@@ -219,7 +244,8 @@ def create_item(
     Returns:
         Created catalog item data
     """
-    # Create catalog item
+    # Issue #5: Improved transaction handling
+    # Create item with 'pending' status first, only activate after embedding succeeds
     supabase_admin = get_supabase_admin()
     item_data = {
         'org_id': org_id,
@@ -227,7 +253,7 @@ def create_item(
         'description': description,
         'category': category,
         'created_by': created_by,
-        'status': 'active'
+        'status': 'pending'  # Start as pending until embedding is created
     }
 
     # Add optional product fields
@@ -250,23 +276,32 @@ def create_item(
         raise Exception("Failed to create catalog item")
 
     item = item_response.data[0]
+    item_id = item['id']
 
     # Generate and store embedding
     # CRITICAL: This must succeed for search to work
     try:
         embedding = encode_catalog_item(name, description, category)
         embedding_response = supabase_admin.table('catalog_item_embeddings').insert({
-            'catalog_item_id': item['id'],
+            'catalog_item_id': item_id,
             'embedding': embedding
         }).execute()
 
         if not embedding_response.data:
-            raise Exception("Failed to create embedding - rolling back item creation")
+            raise Exception("Failed to create embedding")
+
+        # Success: Update status to 'active'
+        supabase_admin.table('catalog_items').update({'status': 'active'}).eq('id', item_id).execute()
+        item['status'] = 'active'
 
     except Exception as e:
         # Rollback: delete the catalog item if embedding creation fails
-        supabase_admin.table('catalog_items').delete().eq('id', item['id']).execute()
-        raise Exception(f"Embedding generation failed, item creation rolled back: {str(e)}")
+        try:
+            supabase_admin.table('catalog_items').delete().eq('id', item_id).execute()
+        except Exception as delete_error:
+            # Log but don't mask the original error
+            logger.error(f"Failed to rollback item {item_id}: {delete_error}")
+        raise Exception(f"Item creation failed: {str(e)}")
 
     # Log audit event
     log_event(
@@ -322,12 +357,12 @@ def update_item(item_id: str, updates: Dict, updated_by: str = None) -> Dict:
             if not embedding_response.data:
                 # Warning: embedding update failed but item was updated
                 # Log this but don't fail the entire operation
-                print(f"WARNING: Failed to update embedding for item {item_id}")
+                logger.warning(f"Failed to update embedding for item {item_id}")
 
         except Exception as e:
             # Log error but don't fail the update operation
             # The item data is still valid, just search might be degraded
-            print(f"ERROR: Embedding regeneration failed for item {item_id}: {str(e)}")
+            logger.error(f"Embedding regeneration failed for item {item_id}: {str(e)}")
 
     # Log audit event if updated_by is provided
     if updated_by:

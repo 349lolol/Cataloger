@@ -1,9 +1,13 @@
 """
 Catalog API endpoints for item management and semantic search.
 """
+import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
 from app.services import catalog_service, proposal_service
+from app.utils.resilience import safe_int, is_valid_uuid
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('catalog', __name__)
 
@@ -29,7 +33,8 @@ def search_items():
         )
         return jsonify({"results": results}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Catalog search failed: {e}")
+        return jsonify({"error": "Search temporarily unavailable"}), 500
 
 
 @bp.route('/catalog/items', methods=['GET'])
@@ -41,7 +46,7 @@ def list_items():
     """
     try:
         status = request.args.get('status')
-        limit = int(request.args.get('limit', 100))
+        limit = safe_int(request.args.get('limit'), default=100, min_val=1, max_val=1000)
 
         items = catalog_service.list_items(
             org_id=g.org_id,
@@ -50,7 +55,8 @@ def list_items():
         )
         return jsonify({"items": items}), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"List items failed: {e}")
+        return jsonify({"error": "Failed to retrieve catalog items"}), 500
 
 
 @bp.route('/catalog/items/<item_id>', methods=['GET'])
@@ -60,6 +66,10 @@ def get_item(item_id):
     Get a single catalog item by ID.
     GET /api/catalog/items/:id
     """
+    # Issue #23: Validate UUID format
+    if not is_valid_uuid(item_id):
+        return jsonify({"error": "Invalid item ID format"}), 400
+
     try:
         item = catalog_service.get_item(item_id)
 
@@ -69,7 +79,8 @@ def get_item(item_id):
 
         return jsonify(item), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Get item failed for {item_id}: {e}")
+        return jsonify({"error": "Item not found or unavailable"}), 500
 
 
 @bp.route('/catalog/items', methods=['POST'])
@@ -111,7 +122,8 @@ def create_item():
         )
         return jsonify(item), 201
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Create item failed: {e}")
+        return jsonify({"error": "Failed to create catalog item"}), 500
 
 
 @bp.route('/catalog/request-new-item', methods=['POST'])
@@ -225,4 +237,5 @@ def request_new_item():
         return jsonify(response_data), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.exception(f"Request new item failed: {e}")
+        return jsonify({"error": "Failed to submit item request"}), 500
