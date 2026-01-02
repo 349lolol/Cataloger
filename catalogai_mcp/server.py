@@ -86,7 +86,15 @@ def authenticate():
         raise RuntimeError(f"Authentication failed: {str(e)}")
 
 
-def _api_call(method: str, endpoint: str, **kwargs) -> Optional[Dict[str, Any]]:
+class APIError(Exception):
+    """Custom exception for API errors with status code and message."""
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        self.message = message
+        super().__init__(f"API Error {status_code}: {message}")
+
+
+def _api_call(method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
     """
     Make authenticated API call to CatalogAI backend.
 
@@ -96,7 +104,12 @@ def _api_call(method: str, endpoint: str, **kwargs) -> Optional[Dict[str, Any]]:
         **kwargs: Additional arguments for httpx request
 
     Returns:
-        Response JSON data or None on error
+        Response JSON data
+
+    Raises:
+        RuntimeError: If not authenticated
+        APIError: If API returns an error status code
+        Exception: For network or other errors
     """
     if not _auth_state['access_token']:
         raise RuntimeError("Not authenticated. Call authenticate() first.")
@@ -119,10 +132,17 @@ def _api_call(method: str, endpoint: str, **kwargs) -> Optional[Dict[str, Any]]:
         return response.json()
 
     except httpx.HTTPStatusError as e:
-        error_msg = f"API Error {e.response.status_code}: {e.response.text}"
-        return {"error": error_msg}
-    except Exception as e:
-        return {"error": str(e)}
+        # Try to extract error message from response
+        try:
+            error_data = e.response.json()
+            error_msg = error_data.get('error', e.response.text)
+        except Exception:
+            error_msg = e.response.text
+        raise APIError(e.response.status_code, error_msg)
+    except httpx.TimeoutException:
+        raise Exception("Request timed out - API server may be unavailable")
+    except httpx.ConnectError:
+        raise Exception("Connection failed - API server may be unavailable")
 
 
 # ============================================================================
@@ -165,7 +185,7 @@ def get_catalog_item(item_id: str) -> Dict[str, Any]:
     Returns:
         Full catalog item details including price, vendor, specs, etc.
     """
-    return _api_call('GET', f'/api/catalog/{item_id}')
+    return _api_call('GET', f'/api/catalog/items/{item_id}')
 
 
 @mcp.tool()
@@ -184,7 +204,7 @@ def list_catalog(limit: int = 50, category: Optional[str] = None) -> Dict[str, A
     if category:
         params['category'] = category
 
-    return _api_call('GET', '/api/catalog', params=params)
+    return _api_call('GET', '/api/catalog/items', params=params)
 
 
 # ============================================================================
