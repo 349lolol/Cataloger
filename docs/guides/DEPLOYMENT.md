@@ -2,6 +2,17 @@
 
 This guide covers deploying CatalogAI for beta testing and production environments.
 
+## Current Status
+
+| Step | Status | Notes |
+|------|--------|-------|
+| Environment configured | ✅ Done | `.env` populated from `.env.example` |
+| Database migrations | ✅ Done | All 6 migrations applied to Supabase |
+| Server running | ✅ Verified | Flask running on port 5001 |
+| Health check | ✅ Passing | `/api/health` returns healthy |
+| Readiness check | ✅ Passing | Database + Gemini connected |
+| **Next step** | ⏳ | Authenticate test user and run API tests |
+
 ## Pre-Deployment Checklist
 
 - [ ] All tests passing (`python -m pytest tests/ -q`)
