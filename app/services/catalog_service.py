@@ -145,7 +145,8 @@ def search_items(
     query_embedding = encode_text(query)
 
     # Call Supabase RPC function for vector search
-    supabase = get_supabase_client()
+    # Use admin client to bypass RLS - org_id filtering is done explicitly
+    supabase = get_supabase_admin()
     response = supabase.rpc(
         'search_catalog_items',
         {
@@ -172,7 +173,8 @@ def get_item(item_id: str) -> Dict:
     Raises:
         Exception: If item not found
     """
-    supabase = get_supabase_client()
+    # Use admin client to bypass RLS
+    supabase = get_supabase_admin()
     response = supabase.table('catalog_items') \
         .select('*') \
         .eq('id', item_id) \
@@ -197,7 +199,8 @@ def list_items(org_id: str, status: Optional[str] = None, limit: int = 100) -> L
     Returns:
         List of catalog items
     """
-    supabase = get_supabase_client()
+    # Use admin client to bypass RLS - org_id filtering is done explicitly
+    supabase = get_supabase_admin()
     query = supabase.table('catalog_items') \
         .select('*') \
         .eq('org_id', org_id) \

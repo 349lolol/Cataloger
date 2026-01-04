@@ -4,7 +4,7 @@ Implements governance workflow for adding, replacing, or deprecating items.
 """
 import logging
 from typing import List, Dict, Optional
-from app.extensions import get_supabase_client
+from app.extensions import get_supabase_admin
 from app.services.audit_service import log_event
 from app.services.catalog_service import create_item, update_item
 
@@ -55,7 +55,7 @@ def create_proposal(
     if proposal_type not in VALID_PROPOSAL_TYPES:
         raise ValueError(f"Invalid proposal type. Must be one of: {', '.join(VALID_PROPOSAL_TYPES)}")
 
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     proposal_data = {
         'org_id': org_id,
         'proposed_by': proposed_by,
@@ -120,7 +120,7 @@ def get_proposal(proposal_id: str) -> Dict:
     Raises:
         Exception: If proposal not found
     """
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     response = supabase.table('proposals') \
         .select('*') \
         .eq('id', proposal_id) \
@@ -139,7 +139,7 @@ def list_proposals(
     limit: int = 100
 ) -> List[Dict]:
     """List proposals (review queue)."""
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     query = supabase.table('proposals') \
         .select('*') \
         .eq('org_id', org_id) \
@@ -199,7 +199,7 @@ def approve_proposal(
 
     # Issue #8: Prevent race condition by including status check in update query
     # This ensures atomic check-and-update (optimistic locking)
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     response = supabase.table('proposals') \
         .update({
             'status': 'approved',
@@ -274,7 +274,7 @@ def reject_proposal(
         raise Exception("Only pending proposals can be rejected")
 
     # Issue #8: Prevent race condition by including status check in update query
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     response = supabase.table('proposals') \
         .update({
             'status': 'rejected',

@@ -5,7 +5,7 @@ Handles JWT validation and role-based access control.
 import logging
 from functools import wraps
 from flask import request, g, jsonify
-from app.extensions import get_supabase_client
+from app.extensions import get_supabase_client, get_supabase_admin
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,8 @@ def get_user_org_and_role(user_id: str):
     For multi-org support, the API should accept org_id in request headers.
     """
     try:
-        supabase = get_supabase_client()
+        # Use admin client to bypass RLS - this is trusted backend code
+        supabase = get_supabase_admin()
         # Use limit(1) instead of single() to avoid exception on 0 or 2+ results
         response = supabase.table('org_memberships') \
             .select('org_id, role') \

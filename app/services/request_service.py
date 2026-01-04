@@ -3,7 +3,7 @@ Request service for managing procurement requests.
 Requests represent the search → approval workflow.
 """
 from typing import List, Dict, Optional, Any
-from app.extensions import get_supabase_client
+from app.extensions import get_supabase_admin
 from app.services.audit_service import log_event
 
 
@@ -79,7 +79,7 @@ def create_request(
     # Validate and normalize search results
     validated_results = _validate_search_results(search_results)
 
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     response = supabase.table('requests').insert({
         'org_id': org_id,
         'created_by': created_by,
@@ -120,7 +120,7 @@ def get_request(request_id: str) -> Dict:
     Raises:
         Exception: If request not found
     """
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     response = supabase.table('requests') \
         .select('*') \
         .eq('id', request_id) \
@@ -151,7 +151,7 @@ def list_requests(
     Returns:
         List of requests
     """
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     query = supabase.table('requests') \
         .select('*') \
         .eq('org_id', org_id) \
@@ -235,7 +235,7 @@ def review_request(
 
     # Issue #7: Prevent race condition by including status check in update query
     # This ensures atomic check-and-update (optimistic locking)
-    supabase = get_supabase_client()
+    supabase = get_supabase_admin()
     response = supabase.table('requests') \
         .update({
             'status': status,
