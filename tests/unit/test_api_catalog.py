@@ -417,3 +417,153 @@ class TestCatalogAPI:
         )
 
         assert response.status_code == 500
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_create_item_xss_prevention(self, mock_org, mock_user, client):
+        """Test that XSS content is rejected in item creation."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'admin')
+
+        # Test script tag in name
+        response = client.post(
+            '/api/catalog/items',
+            headers={'Authorization': 'Bearer test-token'},
+            json={'name': '<script>alert("xss")</script>'}
+        )
+        assert response.status_code == 400
+        assert 'invalid content' in response.get_json()['error']
+
+        # Test javascript: in description
+        response = client.post(
+            '/api/catalog/items',
+            headers={'Authorization': 'Bearer test-token'},
+            json={'name': 'Valid Name', 'description': 'javascript:alert(1)'}
+        )
+        assert response.status_code == 400
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_create_item_invalid_url(self, mock_org, mock_user, client):
+        """Test that invalid URLs are rejected."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'admin')
+
+        response = client.post(
+            '/api/catalog/items',
+            headers={'Authorization': 'Bearer test-token'},
+            json={
+                'name': 'Valid Name',
+                'product_url': 'not-a-valid-url'
+            }
+        )
+        assert response.status_code == 400
+        assert 'http' in response.get_json()['error']
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_create_item_invalid_pricing_type(self, mock_org, mock_user, client):
+        """Test that invalid pricing type is rejected."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'admin')
+
+        response = client.post(
+            '/api/catalog/items',
+            headers={'Authorization': 'Bearer test-token'},
+            json={
+                'name': 'Valid Name',
+                'pricing_type': 'invalid_type'
+            }
+        )
+        assert response.status_code == 400
+        assert 'pricing_type' in response.get_json()['error']
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_create_item_negative_price(self, mock_org, mock_user, client):
+        """Test that negative price is rejected."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'admin')
+
+        response = client.post(
+            '/api/catalog/items',
+            headers={'Authorization': 'Bearer test-token'},
+            json={
+                'name': 'Valid Name',
+                'price': -100
+            }
+        )
+        assert response.status_code == 400
+        assert 'negative' in response.get_json()['error']
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_create_item_price_exceeds_max(self, mock_org, mock_user, client):
+        """Test that price exceeding max is rejected."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'admin')
+
+        response = client.post(
+            '/api/catalog/items',
+            headers={'Authorization': 'Bearer test-token'},
+            json={
+                'name': 'Valid Name',
+                'price': 99999999  # Over $10M limit
+            }
+        )
+        assert response.status_code == 400
+        assert 'exceed' in response.get_json()['error']
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_search_invalid_threshold(self, mock_org, mock_user, client):
+        """Test that invalid threshold is rejected."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'member')
+
+        # Threshold > 1.0
+        response = client.post(
+            '/api/catalog/search',
+            headers={'Authorization': 'Bearer test-token'},
+            json={'query': 'test', 'threshold': 1.5}
+        )
+        assert response.status_code == 400
+        assert 'threshold' in response.get_json()['error']
+
+        # Threshold < 0
+        response = client.post(
+            '/api/catalog/search',
+            headers={'Authorization': 'Bearer test-token'},
+            json={'query': 'test', 'threshold': -0.5}
+        )
+        assert response.status_code == 400
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_search_invalid_limit(self, mock_org, mock_user, client):
+        """Test that invalid limit is rejected."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'member')
+
+        # Limit > 100
+        response = client.post(
+            '/api/catalog/search',
+            headers={'Authorization': 'Bearer test-token'},
+            json={'query': 'test', 'limit': 500}
+        )
+        assert response.status_code == 400
+        assert 'limit' in response.get_json()['error']
+
+    @patch('app.middleware.auth_middleware.get_user_from_token')
+    @patch('app.middleware.auth_middleware.get_user_org_and_role')
+    def test_get_item_invalid_uuid(self, mock_org, mock_user, client):
+        """Test that invalid UUID format is rejected."""
+        mock_user.return_value = Mock(id='user-123')
+        mock_org.return_value = ('org-123', 'member')
+
+        response = client.get(
+            '/api/catalog/items/not-a-valid-uuid',
+            headers={'Authorization': 'Bearer test-token'}
+        )
+        assert response.status_code == 400
+        assert 'Invalid' in response.get_json()['error']
