@@ -19,6 +19,9 @@ def _get_embedding_model():
     return 'models/text-embedding-004'
 
 
+EXPECTED_EMBEDDING_DIMENSION = 768
+
+
 @resilient_external_call("gemini", max_retries=3)
 def encode_text(text: str) -> List[float]:
     """
@@ -29,6 +32,9 @@ def encode_text(text: str) -> List[float]:
 
     Returns:
         List of floats representing the embedding vector (768 dimensions)
+
+    Raises:
+        ValueError: If embedding is missing or has wrong dimensions
     """
     model = _get_embedding_model()
     result = genai.embed_content(
@@ -36,7 +42,17 @@ def encode_text(text: str) -> List[float]:
         content=text,
         task_type="retrieval_document"
     )
-    return result['embedding']
+
+    embedding = result.get('embedding')
+    if not embedding:
+        raise ValueError("Gemini returned no embedding")
+    if len(embedding) != EXPECTED_EMBEDDING_DIMENSION:
+        raise ValueError(
+            f"Embedding dimension mismatch: expected {EXPECTED_EMBEDDING_DIMENSION}, "
+            f"got {len(embedding)}"
+        )
+
+    return embedding
 
 
 def encode_batch(
