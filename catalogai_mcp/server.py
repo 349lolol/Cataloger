@@ -77,10 +77,10 @@ def authenticate():
             _auth_state['org_id'] = user_info.get('org_id')
             _auth_state['user_role'] = user_info.get('role')
 
-        print(f"✅ Authenticated as {user_email}")
-        print(f"   User ID: {_auth_state['user_id']}")
-        print(f"   Org ID: {_auth_state['org_id']}")
-        print(f"   Role: {_auth_state['user_role']}")
+        print(f"✅ Authenticated as {user_email}", file=sys.stderr)
+        print(f"   User ID: {_auth_state['user_id']}", file=sys.stderr)
+        print(f"   Org ID: {_auth_state['org_id']}", file=sys.stderr)
+        print(f"   Role: {_auth_state['user_role']}", file=sys.stderr)
 
     except Exception as e:
         raise RuntimeError(f"Authentication failed: {str(e)}")
@@ -654,15 +654,15 @@ def main():
     """Run MCP server with authentication."""
     try:
         # Authenticate on startup
-        print("🔐 Authenticating MCP server...")
+        print("🔐 Authenticating MCP server...", file=sys.stderr)
         authenticate()
-        print("✅ MCP server ready!\n")
+        print("✅ MCP server ready!\n", file=sys.stderr)
 
         # Run server
         mcp.run(transport="stdio")
 
     except Exception as e:
-        print(f"❌ Failed to start MCP server: {str(e)}")
+        print(f"❌ Failed to start MCP server: {str(e)}", file=sys.stderr)
         sys.exit(1)
 
 
