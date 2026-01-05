@@ -247,8 +247,8 @@ def create_item(
     Returns:
         Created catalog item data
     """
-    # Issue #5: Improved transaction handling
-    # Create item with 'pending' status first, only activate after embedding succeeds
+    # Create catalog item with active status
+    # Note: catalog_items only supports 'active' or 'deprecated' status
     supabase_admin = get_supabase_admin()
     item_data = {
         'org_id': org_id,
@@ -256,7 +256,7 @@ def create_item(
         'description': description,
         'category': category,
         'created_by': created_by,
-        'status': 'pending'  # Start as pending until embedding is created
+        'status': 'active'
     }
 
     # Add optional product fields
@@ -292,10 +292,6 @@ def create_item(
 
         if not embedding_response.data:
             raise Exception("Failed to create embedding")
-
-        # Success: Update status to 'active'
-        supabase_admin.table('catalog_items').update({'status': 'active'}).eq('id', item_id).execute()
-        item['status'] = 'active'
 
     except Exception as e:
         # Rollback: delete the catalog item if embedding creation fails

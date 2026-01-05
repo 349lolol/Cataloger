@@ -601,15 +601,24 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
     # Returns: catalog item dict
 
     # Create item directly (admin only)
-    item = client.catalog.create(name="...", description="...", category="...", metadata={})
+    item = client.catalog.create(
+        name="Product Name",
+        description="Description",
+        category="Category",
+        metadata={},
+        price=299.99,  # optional
+        pricing_type="one_time",  # "one_time", "monthly", "yearly", "usage_based"
+        vendor="Vendor Name",  # optional
+        sku="SKU-123",  # optional
+        product_url="https://..."  # optional
+    )
 
     # Request new item (creates proposal for review)
+    # AI enrichment is ON by default - just provide the product name!
     result = client.catalog.request_new_item(
         name="MacBook Pro 16 M3",
-        description="High-performance laptop",
-        category="Computers",
-        metadata={},
-        justification="Needed for video editing team"
+        justification="Needed for video editing team",
+        use_ai_enrichment=True  # Default: True - Gemini auto-fills description, price, vendor, etc.
     )
     ```
 
@@ -633,7 +642,15 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
     result = client.requests.review(
         request_id="uuid-here",
         status="approved",  # or "rejected"
-        review_notes="Approved for Q1 budget"
+        review_notes="Approved for Q1 budget",
+        # Optional: auto-create proposal when approving
+        create_proposal={
+            "proposal_type": "ADD_ITEM",
+            "item_name": "Product Name",
+            "item_description": "...",
+            "item_category": "Category",
+            "item_price": 299.99
+        }
     )
     ```
 
@@ -646,6 +663,11 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
         item_description="Description",
         item_category="Category",
         item_metadata={},
+        item_price=299.99,  # optional
+        item_pricing_type="one_time",  # "one_time", "monthly", "yearly", "usage_based"
+        item_vendor="Vendor Name",  # optional
+        item_sku="SKU-123",  # optional
+        item_product_url="https://...",  # optional
         replacing_item_id=None,  # required for REPLACE/DEPRECATE
         request_id=None  # optional link to request
     )
@@ -657,7 +679,7 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
     # Get single proposal
     proposal = client.proposals.get(proposal_id="uuid-here")
 
-    # Approve proposal (reviewer/admin only)
+    # Approve proposal (reviewer/admin only) - auto-merges to catalog
     result = client.proposals.approve(proposal_id="uuid-here", review_notes="LGTM")
 
     # Reject proposal (reviewer/admin only)
