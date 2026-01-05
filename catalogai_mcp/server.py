@@ -239,7 +239,7 @@ def create_request(
         'POST',
         '/api/catalog/request-new-item',
         json={
-            'product_name': product_name,
+            'name': product_name,
             'justification': justification,
             'use_ai_enrichment': use_ai_enrichment
         }
@@ -576,17 +576,92 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
     This tool dramatically reduces token usage by allowing Claude to write Python code
     that performs complex multi-step operations, instead of making multiple direct tool calls.
 
-    The sandbox has access to the catalogai SDK pre-installed:
+    The sandbox has the catalogai SDK pre-installed and auto-authenticated:
 
     ```python
-    from catalogai import CatalogAI
+    from catalogai_sdk import CatalogAI
 
     client = CatalogAI()  # Auto-authenticated with your token
+    ```
 
-    # All operations available:
-    results = client.catalog.search("laptop", limit=10)
-    request = client.requests.create(item_name="...", justification="...")
-    proposals = client.proposals.list(status="pending")
+    ## SDK Reference
+
+    ### Catalog Operations (client.catalog)
+    ```python
+    # Search catalog with semantic similarity
+    results = client.catalog.search(query="laptop for video editing", threshold=0.3, limit=10)
+    # Returns: list of items with 'similarity_score'
+
+    # List all catalog items
+    items = client.catalog.list(status=None, limit=100)
+    # Returns: list of catalog items
+
+    # Get single item by ID
+    item = client.catalog.get(item_id="uuid-here")
+    # Returns: catalog item dict
+
+    # Create item directly (admin only)
+    item = client.catalog.create(name="...", description="...", category="...", metadata={})
+
+    # Request new item (creates proposal for review)
+    result = client.catalog.request_new_item(
+        name="MacBook Pro 16 M3",
+        description="High-performance laptop",
+        category="Computers",
+        metadata={},
+        justification="Needed for video editing team"
+    )
+    ```
+
+    ### Request Operations (client.requests)
+    ```python
+    # Create procurement request with search results
+    request = client.requests.create(
+        search_query="ergonomic chair",
+        search_results=[{"id": "...", "name": "...", "similarity_score": 0.85}],
+        justification="Team needs better seating"
+    )
+
+    # List requests
+    requests = client.requests.list(status="pending", created_by=None, limit=100)
+    # status options: "pending", "approved", "rejected"
+
+    # Get single request
+    request = client.requests.get(request_id="uuid-here")
+
+    # Review request (reviewer/admin only)
+    result = client.requests.review(
+        request_id="uuid-here",
+        status="approved",  # or "rejected"
+        review_notes="Approved for Q1 budget"
+    )
+    ```
+
+    ### Proposal Operations (client.proposals)
+    ```python
+    # Create proposal (reviewer/admin only)
+    proposal = client.proposals.create(
+        proposal_type="ADD_ITEM",  # or "REPLACE_ITEM", "DEPRECATE_ITEM"
+        item_name="Product Name",
+        item_description="Description",
+        item_category="Category",
+        item_metadata={},
+        replacing_item_id=None,  # required for REPLACE/DEPRECATE
+        request_id=None  # optional link to request
+    )
+
+    # List proposals
+    proposals = client.proposals.list(status="pending", limit=100)
+    # status options: "pending", "approved", "rejected", "merged"
+
+    # Get single proposal
+    proposal = client.proposals.get(proposal_id="uuid-here")
+
+    # Approve proposal (reviewer/admin only)
+    result = client.proposals.approve(proposal_id="uuid-here", review_notes="LGTM")
+
+    # Reject proposal (reviewer/admin only)
+    result = client.proposals.reject(proposal_id="uuid-here", review_notes="Not needed")
     ```
 
     Args:
@@ -598,22 +673,24 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
 
     Example:
         execute_code('''
-from catalogai import CatalogAI
+from catalogai_sdk import CatalogAI
 
 client = CatalogAI()
 
-# Search for laptops under $2000
+# Search for laptops and filter by price
 results = client.catalog.search("laptop", limit=20)
 affordable = [r for r in results if r.get('price', 9999) < 2000]
 
-# Create request for best match
 if affordable:
     best = max(affordable, key=lambda x: x.get('similarity_score', 0))
-    request = client.requests.create(
-        item_name=best['name'],
-        justification=f"Best laptop under $2000: {best['name']}"
+    print(f"Best match: {best['name']} - ${best.get('price', 'N/A')}")
+
+    # Request this item be added if not already in catalog
+    result = client.catalog.request_new_item(
+        name=best['name'],
+        justification=f"Best laptop under $2000 for team"
     )
-    print(f"Created request {request['id']} for {best['name']}")
+    print(f"Created proposal: {result['proposal']['id']}")
 else:
     print("No laptops found under $2000")
 ''', description="Find and request best laptop under $2000")

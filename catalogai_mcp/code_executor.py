@@ -40,6 +40,13 @@ class CodeExecutor:
             f.write(code)
             code_file = f.name
 
+        # Convert localhost URLs to host.docker.internal for container access
+        api_url = context["api_url"]
+        if "localhost" in api_url:
+            api_url = api_url.replace("localhost", "host.docker.internal")
+        elif "127.0.0.1" in api_url:
+            api_url = api_url.replace("127.0.0.1", "host.docker.internal")
+
         container = None
         try:
             # Run in Docker container (don't use remove=True so we can cleanup manually)
@@ -47,7 +54,7 @@ class CodeExecutor:
                 self.image_name,
                 f"python /code/{os.path.basename(code_file)}",
                 environment={
-                    "CATALOGAI_API_URL": context["api_url"],
+                    "CATALOGAI_API_URL": api_url,
                     "CATALOGAI_AUTH_TOKEN": context["auth_token"]
                 },
                 volumes={
