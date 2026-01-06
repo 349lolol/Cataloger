@@ -86,7 +86,7 @@ class TestAuthMiddleware:
 
         assert user is None
 
-    @patch('app.middleware.auth_middleware.get_supabase_client')
+    @patch('app.middleware.auth_middleware.get_supabase_admin')
     def test_get_user_org_and_role_success(self, mock_supabase):
         """Test successful org and role retrieval."""
         mock_response = Mock()
@@ -105,7 +105,7 @@ class TestAuthMiddleware:
         assert org_id == 'org-123'
         assert role == 'admin'
 
-    @patch('app.middleware.auth_middleware.get_supabase_client')
+    @patch('app.middleware.auth_middleware.get_supabase_admin')
     def test_get_user_org_and_role_not_found(self, mock_supabase):
         """Test org retrieval when user has no org membership."""
         mock_response = Mock()
@@ -123,7 +123,7 @@ class TestAuthMiddleware:
         assert org_id is None
         assert role is None
 
-    @patch('app.middleware.auth_middleware.get_supabase_client')
+    @patch('app.middleware.auth_middleware.get_supabase_admin')
     def test_get_user_org_and_role_error(self, mock_supabase):
         """Test org retrieval when database error occurs."""
         mock_query = Mock()
@@ -195,7 +195,7 @@ class TestAuthMiddleware:
             data = response.get_json()
 
         assert status_code == 403
-        assert 'not a member of any organization' in data['message']
+        assert 'not a member of any organization' in data['error']
 
     def test_require_role_success(self):
         """Test require_role decorator with correct role."""
@@ -226,7 +226,7 @@ class TestAuthMiddleware:
             data = response.get_json()
 
         assert status_code == 403
-        assert 'Requires one of these roles' in data['message']
+        assert 'Requires role' in data['error']
 
     def test_require_role_no_user_role(self):
         """Test require_role decorator without user role in context."""
@@ -241,7 +241,7 @@ class TestAuthMiddleware:
             data = response.get_json()
 
         assert status_code == 401
-        assert 'Authentication required' in data['message']
+        assert 'Unauthorized' in data['error']
 
     def test_require_role_multiple_allowed(self):
         """Test require_role with multiple allowed roles."""

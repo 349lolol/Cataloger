@@ -5,7 +5,7 @@ from app.services import catalog_service
 
 class TestCatalogService:
 
-    @patch('app.services.catalog_service.get_supabase_client')
+    @patch('app.services.catalog_service.get_supabase_admin')
     @patch('app.services.catalog_service.encode_text')
     def test_search_items_calls_rpc(self, mock_encode, mock_supabase):
         """Test that search_items calls Supabase RPC."""
@@ -30,7 +30,7 @@ class TestCatalogService:
         mock_supabase.return_value.rpc.assert_called_once()
         assert result == [{'item_name': 'Test Item'}]
 
-    @patch('app.services.catalog_service.get_supabase_client')
+    @patch('app.services.catalog_service.get_supabase_admin')
     def test_get_item_returns_item(self, mock_supabase):
         """Test get_item returns item data."""
         # Setup mock
@@ -53,7 +53,7 @@ class TestCatalogService:
         # Assertions
         assert result == {'id': 'item-123', 'name': 'Test Item'}
 
-    @patch('app.services.catalog_service.get_supabase_client')
+    @patch('app.services.catalog_service.get_supabase_admin')
     def test_get_item_raises_exception_when_not_found(self, mock_supabase):
         """Test get_item raises exception when item not found."""
         # Setup mock to return None (item not found)
@@ -72,7 +72,7 @@ class TestCatalogService:
         with pytest.raises(Exception, match="Catalog item not found"):
             catalog_service.get_item("nonexistent-item")
 
-    @patch('app.services.catalog_service.get_supabase_client')
+    @patch('app.services.catalog_service.get_supabase_admin')
     def test_list_items_with_status_filter(self, mock_supabase):
         """Test list_items with status filter."""
         # Setup mock
@@ -269,7 +269,7 @@ class TestCatalogService:
 
         mock_admin.table.return_value = mock_table
 
-        with pytest.raises(Exception, match="Item creation failed"):
+        with pytest.raises(Exception, match="Database temporarily unavailable"):
             catalog_service.create_item(
                 org_id="org-123",
                 name="Test Item",
@@ -355,7 +355,7 @@ class TestCatalogService:
 
         assert result['price'] == 199.99
 
-    @patch('app.services.catalog_service.get_supabase_client')
+    @patch('app.services.catalog_service.get_supabase_admin')
     def test_list_items_without_status_filter(self, mock_supabase):
         """Test list_items without status filter."""
         mock_response = Mock()
@@ -376,7 +376,7 @@ class TestCatalogService:
 
         assert len(result) == 2
 
-    @patch('app.services.catalog_service.get_supabase_client')
+    @patch('app.services.catalog_service.get_supabase_admin')
     @patch('app.services.catalog_service.encode_text')
     def test_search_items_empty_results(self, mock_encode, mock_supabase):
         """Test search_items returns empty list when no matches."""
@@ -411,5 +411,5 @@ class TestCatalogService:
 
         mock_supabase_admin.return_value.table.return_value = mock_table
 
-        with pytest.raises(Exception, match="Failed to update catalog item"):
+        with pytest.raises(Exception, match="Database temporarily unavailable"):
             catalog_service.update_item("item-123", {'name': 'New Name'})

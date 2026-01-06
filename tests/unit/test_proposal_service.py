@@ -5,7 +5,7 @@ from app.services import proposal_service
 
 class TestProposalService:
 
-    @patch('app.services.proposal_service.get_supabase_client')
+    @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.audit_service.log_event')
     def test_create_add_item_proposal(self, mock_audit, mock_supabase_getter):
         """Test creating ADD_ITEM proposal."""
@@ -42,7 +42,7 @@ class TestProposalService:
         assert result["status"] == "open"
 
 
-    @patch('app.services.proposal_service.get_supabase_client')
+    @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.audit_service.log_event')
     def test_create_replace_item_proposal(self, mock_audit, mock_supabase_getter):
         """Test creating REPLACE_ITEM proposal."""
@@ -75,7 +75,7 @@ class TestProposalService:
         assert result["proposal_type"] == "REPLACE_ITEM"
         assert result["replacing_item_id"] == "item-old"
 
-    @patch('app.services.proposal_service.get_supabase_client')
+    @patch('app.services.proposal_service.get_supabase_admin')
     def test_get_proposal_by_id(self, mock_supabase_getter):
         """Test retrieving proposal by ID."""
         # Setup mock
@@ -106,7 +106,7 @@ class TestProposalService:
         assert result["status"] == "pending"
 
     @patch('app.services.proposal_service.get_proposal')
-    @patch('app.services.proposal_service.get_supabase_client')
+    @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.proposal_service.create_item')
     @patch('app.services.audit_service.log_event')
     def test_approve_add_item_proposal(self, mock_audit, mock_create_item, mock_supabase_getter, mock_get_proposal):
@@ -184,7 +184,7 @@ class TestProposalService:
         mock_create_item.assert_called_once()
 
     @patch('app.services.proposal_service.get_proposal')
-    @patch('app.services.proposal_service.get_supabase_client')
+    @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.audit_service.log_event')
     def test_reject_proposal(self, mock_audit, mock_supabase_getter, mock_get_proposal):
         """Test rejecting a proposal."""
@@ -227,7 +227,7 @@ class TestProposalService:
         assert result["reviewed_by"] == "admin-123"
 
 
-    @patch('app.services.proposal_service.get_supabase_client')
+    @patch('app.services.proposal_service.get_supabase_admin')
     def test_list_proposals_with_filters(self, mock_supabase_getter):
         """Test listing proposals with status filter."""
         # Setup mock

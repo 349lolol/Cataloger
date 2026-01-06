@@ -5,7 +5,7 @@ from app.services import request_service
 
 class TestRequestService:
 
-    @patch('app.services.request_service.get_supabase_client')
+    @patch('app.services.request_service.get_supabase_admin')
     @patch('app.services.request_service.log_event')
     def test_create_request_success(self, mock_log_event, mock_supabase_getter):
         """Test creating a new request."""
@@ -51,7 +51,7 @@ class TestRequestService:
             metadata={"search_query": "laptop"}
         )
 
-    @patch('app.services.request_service.get_supabase_client')
+    @patch('app.services.request_service.get_supabase_admin')
     def test_get_request_by_id(self, mock_supabase_getter):
         """Test retrieving request by ID."""
         # Setup mock
@@ -74,7 +74,7 @@ class TestRequestService:
         assert result["id"] == "request-123"
         assert result["search_query"] == "laptop"
 
-    @patch('app.services.request_service.get_supabase_client')
+    @patch('app.services.request_service.get_supabase_admin')
     def test_list_requests_with_filters(self, mock_supabase_getter):
         """Test listing requests with status filter."""
         # Setup mock
@@ -104,7 +104,7 @@ class TestRequestService:
         assert result[0]["status"] == "pending"
 
     @patch('app.services.request_service.get_request')
-    @patch('app.services.request_service.get_supabase_client')
+    @patch('app.services.request_service.get_supabase_admin')
     @patch('app.services.request_service.log_event')
     def test_review_request_approve(self, mock_log_event, mock_supabase_getter, mock_get_request):
         """Test approving a request via review."""
@@ -158,7 +158,7 @@ class TestRequestService:
         )
 
     @patch('app.services.request_service.get_request')
-    @patch('app.services.request_service.get_supabase_client')
+    @patch('app.services.request_service.get_supabase_admin')
     @patch('app.services.request_service.log_event')
     def test_review_request_reject(self, mock_log_event, mock_supabase_getter, mock_get_request):
         """Test rejecting a request via review."""
