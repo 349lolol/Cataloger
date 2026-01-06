@@ -276,5 +276,6 @@ class TestProposalService:
         mock_update_item.assert_called_once_with(
             "item-old-123",
             {"status": "deprecated"},
-            updated_by="admin-123"
+            updated_by="admin-123",
+            user_token=None
         )

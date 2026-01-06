@@ -45,7 +45,8 @@ def create_proposal():
         item_vendor=data.get('item_vendor'),
         item_sku=data.get('item_sku'),
         replacing_item_id=data.get('replacing_item_id'),
-        request_id=data.get('request_id')
+        request_id=data.get('request_id'),
+        user_token=g.user_token
     )
     return jsonify(proposal), 201
 
@@ -59,7 +60,8 @@ def list_proposals():
     proposals = proposal_service.list_proposals(
         org_id=g.org_id,
         status=status,
-        limit=limit
+        limit=limit,
+        user_token=g.user_token
     )
     return jsonify({"proposals": proposals}), 200
 
@@ -69,7 +71,7 @@ def list_proposals():
 def get_proposal(proposal_id):
     require_valid_uuid(proposal_id, "proposal ID")
 
-    proposal = proposal_service.get_proposal(proposal_id)
+    proposal = proposal_service.get_proposal(proposal_id, user_token=g.user_token)
     check_org_access(proposal, g.org_id, "proposal")
 
     return jsonify(proposal), 200
@@ -87,7 +89,8 @@ def approve_proposal(proposal_id):
         proposal_id=proposal_id,
         reviewed_by=g.user_id,
         review_notes=data.get('review_notes'),
-        org_id=g.org_id
+        org_id=g.org_id,
+        user_token=g.user_token
     )
     return jsonify(proposal), 200
 
@@ -104,6 +107,7 @@ def reject_proposal(proposal_id):
         proposal_id=proposal_id,
         reviewed_by=g.user_id,
         review_notes=data.get('review_notes'),
-        org_id=g.org_id
+        org_id=g.org_id,
+        user_token=g.user_token
     )
     return jsonify(proposal), 200

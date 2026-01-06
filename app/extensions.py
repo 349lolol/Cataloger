@@ -35,3 +35,25 @@ def get_supabase_admin() -> Client:
                     settings.SUPABASE_SERVICE_ROLE_KEY
                 )
     return _supabase_admin
+
+
+def get_supabase_user_client(access_token: str) -> Client:
+    """
+    Get Supabase client with user JWT for RLS enforcement.
+
+    Creates a new client instance with the user's access token,
+    allowing RLS policies to use auth.uid() for row-level security.
+
+    Args:
+        access_token: User's JWT from Authorization header
+
+    Returns:
+        Supabase client configured for user context
+    """
+    settings = get_settings()
+    client = create_client(
+        settings.SUPABASE_URL,
+        settings.SUPABASE_KEY
+    )
+    client.postgrest.auth(access_token)
+    return client

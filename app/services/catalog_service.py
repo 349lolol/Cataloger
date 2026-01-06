@@ -1,11 +1,18 @@
 import logging
 from typing import List, Dict, Optional
-from app.extensions import get_supabase_admin
+from app.extensions import get_supabase_admin, get_supabase_user_client
 from app.services.embedding_service import encode_text, encode_catalog_item
 from app.services.audit_service import log_event
 from app.middleware.error_responses import NotFoundError, DatabaseError
 
 logger = logging.getLogger(__name__)
+
+
+def _get_client(user_token: Optional[str] = None):
+    """Get appropriate Supabase client based on whether user token is provided."""
+    if user_token:
+        return get_supabase_user_client(user_token)
+    return get_supabase_admin()
 
 
 def check_and_repair_embeddings(org_id: str) -> Dict:
@@ -92,10 +99,10 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
     }
 
 
-def search_items(query: str, org_id: str, threshold: float = 0.3, limit: int = 10) -> List[Dict]:
+def search_items(query: str, org_id: str, threshold: float = 0.3, limit: int = 10, user_token: Optional[str] = None) -> List[Dict]:
     query_embedding = encode_text(query)
 
-    supabase = get_supabase_admin()
+    supabase = _get_client(user_token)
     response = supabase.rpc(
         'search_catalog_items',
         {
@@ -109,8 +116,8 @@ def search_items(query: str, org_id: str, threshold: float = 0.3, limit: int = 1
     return response.data if response.data else []
 
 
-def get_item(item_id: str) -> Dict:
-    supabase = get_supabase_admin()
+def get_item(item_id: str, user_token: Optional[str] = None) -> Dict:
+    supabase = _get_client(user_token)
     response = supabase.table('catalog_items') \
         .select('*') \
         .eq('id', item_id) \
@@ -123,8 +130,8 @@ def get_item(item_id: str) -> Dict:
     return response.data
 
 
-def list_items(org_id: str, status: Optional[str] = None, limit: int = 100) -> List[Dict]:
-    supabase = get_supabase_admin()
+def list_items(org_id: str, status: Optional[str] = None, limit: int = 100, user_token: Optional[str] = None) -> List[Dict]:
+    supabase = _get_client(user_token)
     query = supabase.table('catalog_items') \
         .select('*') \
         .eq('org_id', org_id) \
@@ -149,9 +156,12 @@ def create_item(
     product_url: Optional[str] = None,
     vendor: Optional[str] = None,
     sku: Optional[str] = None,
-    metadata: Optional[Dict] = None
+    metadata: Optional[Dict] = None,
+    user_token: Optional[str] = None
 ) -> Dict:
-    supabase_admin = get_supabase_admin()
+    supabase = _get_client(user_token)
+    supabase_admin = get_supabase_admin()  # For embeddings (no user RLS policy)
+
     item_data = {
         'org_id': org_id,
         'name': name,
@@ -174,7 +184,7 @@ def create_item(
     if metadata:
         item_data['metadata'] = metadata
 
-    item_response = supabase_admin.table('catalog_items').insert(item_data).execute()
+    item_response = supabase.table('catalog_items').insert(item_data).execute()
 
     if not item_response.data:
         raise DatabaseError("Failed to create catalog item")
@@ -211,10 +221,11 @@ def create_item(
     return item
 
 
-def update_item(item_id: str, updates: Dict, updated_by: str = None) -> Dict:
-    supabase_admin = get_supabase_admin()
+def update_item(item_id: str, updates: Dict, updated_by: str = None, user_token: Optional[str] = None) -> Dict:
+    supabase = _get_client(user_token)
+    supabase_admin = get_supabase_admin()  # For embeddings (no user RLS policy)
 
-    response = supabase_admin.table('catalog_items') \
+    response = supabase.table('catalog_items') \
         .update(updates) \
         .eq('id', item_id) \
         .execute()

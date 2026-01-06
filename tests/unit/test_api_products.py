@@ -15,7 +15,7 @@ class TestProductsAPI:
         # Mock auth
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         # Mock enrichment
@@ -50,7 +50,7 @@ class TestProductsAPI:
         """Test enrichment without product_name."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         response = client.post(
@@ -70,7 +70,7 @@ class TestProductsAPI:
         """Test enrichment with no request body returns error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         response = client.post(
@@ -91,7 +91,7 @@ class TestProductsAPI:
         """Test enrichment with category hint."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         mock_enrich.return_value = {
@@ -126,7 +126,7 @@ class TestProductsAPI:
         """Test enrichment with additional context."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         mock_enrich.return_value = {
@@ -161,7 +161,7 @@ class TestProductsAPI:
         """Test enrichment with validation error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         mock_enrich.side_effect = ValueError("Missing required field: vendor")
@@ -183,7 +183,7 @@ class TestProductsAPI:
         """Test enrichment with service error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         mock_enrich.side_effect = Exception("Gemini API error")
@@ -214,7 +214,7 @@ class TestProductsAPI:
         """Test successful batch enrichment."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         mock_batch.return_value = [
@@ -241,7 +241,7 @@ class TestProductsAPI:
         """Test batch enrichment without product_names."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         response = client.post(
@@ -260,7 +260,7 @@ class TestProductsAPI:
         """Test batch enrichment with non-array product_names."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         response = client.post(
@@ -279,7 +279,7 @@ class TestProductsAPI:
         """Test batch enrichment exceeding maximum batch size."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         product_names = [f'Product {i}' for i in range(25)]
@@ -301,7 +301,7 @@ class TestProductsAPI:
         """Test batch enrichment with service error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         mock_batch.side_effect = Exception("Batch processing failed")
@@ -332,7 +332,7 @@ class TestProductsAPI:
         """Test batch enrichment with empty array."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('test-org-id', 'member')
 
         mock_batch.return_value = []

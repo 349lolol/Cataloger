@@ -27,19 +27,21 @@ class TestAuthMiddleware:
 
         app = Flask(__name__)
         with app.test_request_context(headers={'Authorization': 'Bearer valid-token'}):
-            user = get_user_from_token()
+            user, token = get_user_from_token()
 
         assert user is not None
         assert user.id == 'user-123'
+        assert token == 'valid-token'
         mock_auth.get_user.assert_called_once_with('valid-token')
 
     def test_get_user_from_token_no_header(self):
         """Test token validation without Authorization header."""
         app = Flask(__name__)
         with app.test_request_context():
-            user = get_user_from_token()
+            user, token = get_user_from_token()
 
         assert user is None
+        assert token is None
 
     def test_get_user_from_token_invalid_format(self):
         """Test token validation with invalid Authorization format."""
@@ -47,18 +49,21 @@ class TestAuthMiddleware:
 
         # Test missing Bearer prefix
         with app.test_request_context(headers={'Authorization': 'invalid-token'}):
-            user = get_user_from_token()
+            user, token = get_user_from_token()
         assert user is None
+        assert token is None
 
         # Test wrong prefix
         with app.test_request_context(headers={'Authorization': 'Basic token'}):
-            user = get_user_from_token()
+            user, token = get_user_from_token()
         assert user is None
+        assert token is None
 
         # Test only Bearer without token
         with app.test_request_context(headers={'Authorization': 'Bearer'}):
-            user = get_user_from_token()
+            user, token = get_user_from_token()
         assert user is None
+        assert token is None
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_validation_error(self, mock_supabase):
@@ -69,9 +74,10 @@ class TestAuthMiddleware:
 
         app = Flask(__name__)
         with app.test_request_context(headers={'Authorization': 'Bearer invalid-token'}):
-            user = get_user_from_token()
+            user, token = get_user_from_token()
 
         assert user is None
+        assert token is None
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_no_user(self, mock_supabase):
@@ -82,9 +88,10 @@ class TestAuthMiddleware:
 
         app = Flask(__name__)
         with app.test_request_context(headers={'Authorization': 'Bearer token'}):
-            user = get_user_from_token()
+            user, token = get_user_from_token()
 
         assert user is None
+        assert token is None
 
     @patch('app.middleware.auth_middleware.get_supabase_admin')
     def test_get_user_org_and_role_success(self, mock_supabase):
@@ -141,7 +148,7 @@ class TestAuthMiddleware:
         """Test require_auth decorator with valid auth."""
         mock_user = Mock()
         mock_user.id = 'user-123'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('org-123', 'member')
 
         app = Flask(__name__)
@@ -160,7 +167,7 @@ class TestAuthMiddleware:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_require_auth_no_token(self, mock_get_user):
         """Test require_auth decorator without token."""
-        mock_get_user.return_value = None
+        mock_get_user.return_value = (None, None)
 
         app = Flask(__name__)
 
@@ -181,7 +188,7 @@ class TestAuthMiddleware:
         """Test require_auth when user has no org membership."""
         mock_user = Mock()
         mock_user.id = 'user-123'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = (None, None)
 
         app = Flask(__name__)
@@ -265,7 +272,7 @@ class TestAuthMiddleware:
         mock_user = Mock()
         mock_user.id = 'user-123'
         mock_user.email = 'test@example.com'
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ('org-456', 'reviewer')
 
         app = Flask(__name__)
@@ -276,7 +283,8 @@ class TestAuthMiddleware:
                 'user_id': g.user_id,
                 'org_id': g.org_id,
                 'user_role': g.user_role,
-                'has_user': hasattr(g, 'user')
+                'has_user': hasattr(g, 'user'),
+                'has_user_token': hasattr(g, 'user_token')
             })
 
         with app.test_request_context(headers={'Authorization': 'Bearer token'}):
@@ -287,6 +295,7 @@ class TestAuthMiddleware:
         assert data['org_id'] == 'org-456'
         assert data['user_role'] == 'reviewer'
         assert data['has_user'] is True
+        assert data['has_user_token'] is True
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_case_insensitive_bearer(self, mock_supabase):
@@ -305,7 +314,8 @@ class TestAuthMiddleware:
 
         # Test lowercase bearer
         with app.test_request_context(headers={'Authorization': 'bearer valid-token'}):
-            user = get_user_from_token()
+            user, token = get_user_from_token()
 
         assert user is not None
         assert user.id == 'user-123'
+        assert token == 'valid-token'

@@ -18,7 +18,7 @@ class TestRequestsAPI:
         def mock_user_from_token():
             user = Mock()
             user.id = user_id
-            return user
+            return (user, 'test-token')
 
         def mock_org_and_role(uid):
             return org_id, role
@@ -33,7 +33,7 @@ class TestRequestsAPI:
         # Setup auth mocks
         mock_user = Mock()
         mock_user.id = "user-123"
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ("org-123", "requester")
 
         # Setup service mock
@@ -69,7 +69,7 @@ class TestRequestsAPI:
         # Setup auth mocks
         mock_user = Mock()
         mock_user.id = "user-123"
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = ("org-123", "requester")
 
         # Setup service mock
@@ -98,7 +98,7 @@ class TestRequestsAPI:
         # Setup auth mocks
         mock_user = Mock()
         mock_user.id = TEST_USER_UUID
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = (TEST_ORG_UUID, "requester")
 
         # Setup service mock
@@ -129,7 +129,7 @@ class TestRequestsAPI:
         reviewer_uuid = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
         mock_user = Mock()
         mock_user.id = reviewer_uuid
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = (TEST_ORG_UUID, "reviewer")
 
         # Setup service mock
@@ -164,7 +164,7 @@ class TestRequestsAPI:
         admin_uuid = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
         mock_user = Mock()
         mock_user.id = admin_uuid
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = (TEST_ORG_UUID, "admin")
 
         # Setup service mock
@@ -197,7 +197,7 @@ class TestRequestsAPI:
         # Setup auth mocks - requester role (insufficient)
         mock_user = Mock()
         mock_user.id = TEST_USER_UUID
-        mock_get_user.return_value = mock_user
+        mock_get_user.return_value = (mock_user, 'test-token')
         mock_get_org.return_value = (TEST_ORG_UUID, "requester")
 
         # Make request - note: still uses test UUID since we test role check, not UUID validation
@@ -217,7 +217,7 @@ class TestRequestsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_unauthorized_without_token(self, mock_get_user, client):
         """Test that requests without auth token are rejected."""
-        mock_get_user.return_value = None
+        mock_get_user.return_value = (None, None)
 
         # Make request without token
         response = client.get('/api/requests')

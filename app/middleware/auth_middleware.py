@@ -7,23 +7,26 @@ logger = logging.getLogger(__name__)
 
 
 def get_user_from_token():
+    """Validate JWT and return (user, token) tuple for RLS enforcement."""
     auth_header = request.headers.get('Authorization')
     if not auth_header:
-        return None
+        return None, None
 
     parts = auth_header.split()
     if len(parts) != 2 or parts[0].lower() != 'bearer':
-        return None
+        return None, None
 
     token = parts[1]
 
     try:
         supabase = get_supabase_client()
         response = supabase.auth.get_user(token)
-        return response.user if response else None
+        if response and response.user:
+            return response.user, token
+        return None, None
     except Exception as e:
         logger.error(f"Token validation error: {e}")
-        return None
+        return None, None
 
 
 def get_user_org_and_role(user_id: str):
@@ -46,12 +49,13 @@ def get_user_org_and_role(user_id: str):
 def require_auth(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        user = get_user_from_token()
+        user, token = get_user_from_token()
         if not user:
             return jsonify({"error": "Unauthorized"}), 401
 
         g.user = user
         g.user_id = user.id
+        g.user_token = token  # Store JWT for RLS-enabled Supabase queries
 
         org_id, role = get_user_org_and_role(user.id)
         if not org_id:

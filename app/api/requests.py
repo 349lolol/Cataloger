@@ -19,7 +19,8 @@ def create_request():
         created_by=g.user_id,
         search_query=data['search_query'],
         search_results=data.get('search_results', []),
-        justification=data.get('justification')
+        justification=data.get('justification'),
+        user_token=g.user_token
     )
     return jsonify(req), 201
 
@@ -35,7 +36,8 @@ def list_requests():
         org_id=g.org_id,
         status=status,
         created_by=created_by,
-        limit=limit
+        limit=limit,
+        user_token=g.user_token
     )
     return jsonify({"requests": requests_list}), 200
 
@@ -45,7 +47,7 @@ def list_requests():
 def get_request(request_id):
     require_valid_uuid(request_id, "request ID")
 
-    req = request_service.get_request(request_id)
+    req = request_service.get_request(request_id, user_token=g.user_token)
     check_org_access(req, g.org_id, "request")
 
     return jsonify(req), 200
@@ -70,6 +72,7 @@ def review_request(request_id):
         status=data['status'],
         review_notes=data.get('review_notes'),
         create_proposal=data.get('create_proposal'),
-        org_id=g.org_id
+        org_id=g.org_id,
+        user_token=g.user_token
     )
     return jsonify(req), 200

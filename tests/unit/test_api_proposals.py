@@ -29,7 +29,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.create_proposal.return_value = {
@@ -65,7 +65,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.create_proposal.return_value = {
@@ -100,7 +100,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "reviewer")
 
         # Make request without proposal_type
@@ -126,7 +126,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.list_proposals.return_value = [
@@ -153,7 +153,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.list_proposals.return_value = [
@@ -181,7 +181,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = TEST_USER_UUID
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = (TEST_ORG_UUID, "reviewer")
 
         mock_service.get_proposal.return_value = {
@@ -211,7 +211,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = admin_uuid
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = (TEST_ORG_UUID, "admin")
 
         mock_service.approve_proposal.return_value = {
@@ -242,7 +242,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = reviewer_uuid
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = (TEST_ORG_UUID, "reviewer")
 
         mock_service.reject_proposal.return_value = {
@@ -272,7 +272,7 @@ class TestProposalsAPI:
         # Setup mocks - regular requester role (should be forbidden)
         user_mock = Mock()
         user_mock.id = TEST_USER_UUID
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = (TEST_ORG_UUID, "requester")
 
         # Make request
@@ -294,7 +294,7 @@ class TestProposalsAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "reviewer")
 
         mock_service.create_proposal.return_value = {

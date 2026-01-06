@@ -66,7 +66,8 @@ def search_items():
         query=data['query'],
         org_id=g.org_id,
         threshold=threshold,
-        limit=limit
+        limit=limit,
+        user_token=g.user_token
     )
     return jsonify({"results": results}), 200
 
@@ -80,7 +81,8 @@ def list_items():
     items = catalog_service.list_items(
         org_id=g.org_id,
         status=status,
-        limit=limit
+        limit=limit,
+        user_token=g.user_token
     )
     return jsonify({"items": items}), 200
 
@@ -90,7 +92,7 @@ def list_items():
 def get_item(item_id):
     require_valid_uuid(item_id, "item ID")
 
-    item = catalog_service.get_item(item_id)
+    item = catalog_service.get_item(item_id, user_token=g.user_token)
     check_org_access(item, g.org_id, "catalog item")
 
     return jsonify(item), 200
@@ -141,7 +143,8 @@ def create_item():
         product_url=data.get('product_url'),
         vendor=data.get('vendor'),
         sku=data.get('sku'),
-        metadata=data.get('metadata')
+        metadata=data.get('metadata'),
+        user_token=g.user_token
     )
     return jsonify(item), 201
 
@@ -199,7 +202,8 @@ def request_new_item():
         item_pricing_type=item_pricing_type,
         item_product_url=item_product_url,
         item_vendor=item_vendor,
-        item_sku=item_sku
+        item_sku=item_sku,
+        user_token=g.user_token
     )
 
     response_data = {

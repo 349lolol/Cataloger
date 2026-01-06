@@ -1,7 +1,14 @@
 from typing import List, Dict, Optional, Any
-from app.extensions import get_supabase_admin
+from app.extensions import get_supabase_admin, get_supabase_user_client
 from app.services.audit_service import log_event
 from app.middleware.error_responses import NotFoundError, BadRequestError, ForbiddenError, ConflictError, DatabaseError
+
+
+def _get_client(user_token: Optional[str] = None):
+    """Get appropriate Supabase client based on whether user token is provided."""
+    if user_token:
+        return get_supabase_user_client(user_token)
+    return get_supabase_admin()
 
 
 def _validate_search_results(search_results: Any) -> List[Dict]:
@@ -40,11 +47,12 @@ def create_request(
     created_by: str,
     search_query: str,
     search_results: List[Dict],
-    justification: Optional[str] = None
+    justification: Optional[str] = None,
+    user_token: Optional[str] = None
 ) -> Dict:
     validated_results = _validate_search_results(search_results)
 
-    supabase = get_supabase_admin()
+    supabase = _get_client(user_token)
     response = supabase.table('requests').insert({
         'org_id': org_id,
         'created_by': created_by,
@@ -71,8 +79,8 @@ def create_request(
     return request
 
 
-def get_request(request_id: str) -> Dict:
-    supabase = get_supabase_admin()
+def get_request(request_id: str, user_token: Optional[str] = None) -> Dict:
+    supabase = _get_client(user_token)
     response = supabase.table('requests') \
         .select('*') \
         .eq('id', request_id) \
@@ -89,9 +97,10 @@ def list_requests(
     org_id: str,
     status: Optional[str] = None,
     created_by: Optional[str] = None,
-    limit: int = 100
+    limit: int = 100,
+    user_token: Optional[str] = None
 ) -> List[Dict]:
-    supabase = get_supabase_admin()
+    supabase = _get_client(user_token)
     query = supabase.table('requests') \
         .select('*') \
         .eq('org_id', org_id) \
@@ -113,12 +122,13 @@ def review_request(
     status: str,
     review_notes: Optional[str] = None,
     create_proposal: Optional[Dict] = None,
-    org_id: Optional[str] = None
+    org_id: Optional[str] = None,
+    user_token: Optional[str] = None
 ) -> Dict:
     if status not in ['approved', 'rejected']:
         raise BadRequestError("Status must be 'approved' or 'rejected'")
 
-    current_request = get_request(request_id)
+    current_request = get_request(request_id, user_token=user_token)
 
     if org_id and current_request['org_id'] != org_id:
         raise ForbiddenError("Cannot review request from different organization")
@@ -126,7 +136,7 @@ def review_request(
     if current_request['status'] != 'pending':
         raise ConflictError(f"Only pending requests can be reviewed (current: {current_request['status']})")
 
-    supabase = get_supabase_admin()
+    supabase = _get_client(user_token)
     response = supabase.table('requests') \
         .update({
             'status': status,
@@ -169,7 +179,8 @@ def review_request(
             item_product_url=create_proposal.get('item_product_url'),
             item_vendor=create_proposal.get('item_vendor'),
             item_sku=create_proposal.get('item_sku'),
-            replacing_item_id=create_proposal.get('replacing_item_id')
+            replacing_item_id=create_proposal.get('replacing_item_id'),
+            user_token=user_token
         )
         request['proposal'] = proposal
 

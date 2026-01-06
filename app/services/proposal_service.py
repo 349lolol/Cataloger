@@ -1,6 +1,6 @@
 import logging
 from typing import List, Dict, Optional
-from app.extensions import get_supabase_admin
+from app.extensions import get_supabase_admin, get_supabase_user_client
 from app.services.audit_service import log_event
 from app.services.catalog_service import create_item, update_item
 from app.middleware.error_responses import NotFoundError, BadRequestError, ForbiddenError, ConflictError, DatabaseError
@@ -8,6 +8,13 @@ from app.middleware.error_responses import NotFoundError, BadRequestError, Forbi
 logger = logging.getLogger(__name__)
 
 VALID_PROPOSAL_TYPES = ('ADD_ITEM', 'REPLACE_ITEM', 'DEPRECATE_ITEM')
+
+
+def _get_client(user_token: Optional[str] = None):
+    """Get appropriate Supabase client based on whether user token is provided."""
+    if user_token:
+        return get_supabase_user_client(user_token)
+    return get_supabase_admin()
 
 
 def create_proposal(
@@ -24,12 +31,13 @@ def create_proposal(
     item_vendor: Optional[str] = None,
     item_sku: Optional[str] = None,
     replacing_item_id: Optional[str] = None,
-    request_id: Optional[str] = None
+    request_id: Optional[str] = None,
+    user_token: Optional[str] = None
 ) -> Dict:
     if proposal_type not in VALID_PROPOSAL_TYPES:
         raise BadRequestError(f"Invalid proposal type. Must be one of: {', '.join(VALID_PROPOSAL_TYPES)}")
 
-    supabase = get_supabase_admin()
+    supabase = _get_client(user_token)
     proposal_data = {
         'org_id': org_id,
         'proposed_by': proposed_by,
@@ -79,8 +87,8 @@ def create_proposal(
     return proposal
 
 
-def get_proposal(proposal_id: str) -> Dict:
-    supabase = get_supabase_admin()
+def get_proposal(proposal_id: str, user_token: Optional[str] = None) -> Dict:
+    supabase = _get_client(user_token)
     response = supabase.table('proposals') \
         .select('*') \
         .eq('id', proposal_id) \
@@ -93,8 +101,8 @@ def get_proposal(proposal_id: str) -> Dict:
     return response.data
 
 
-def list_proposals(org_id: str, status: Optional[str] = None, limit: int = 100) -> List[Dict]:
-    supabase = get_supabase_admin()
+def list_proposals(org_id: str, status: Optional[str] = None, limit: int = 100, user_token: Optional[str] = None) -> List[Dict]:
+    supabase = _get_client(user_token)
     query = supabase.table('proposals') \
         .select('*') \
         .eq('org_id', org_id) \
@@ -112,9 +120,10 @@ def approve_proposal(
     proposal_id: str,
     reviewed_by: str,
     review_notes: Optional[str] = None,
-    org_id: Optional[str] = None
+    org_id: Optional[str] = None,
+    user_token: Optional[str] = None
 ) -> Dict:
-    proposal = get_proposal(proposal_id)
+    proposal = get_proposal(proposal_id, user_token=user_token)
 
     if org_id and proposal['org_id'] != org_id:
         raise ForbiddenError("Cannot approve proposal from different organization")
@@ -122,7 +131,7 @@ def approve_proposal(
     if proposal['status'] != 'pending':
         raise ConflictError("Only pending proposals can be approved")
 
-    supabase = get_supabase_admin()
+    supabase = _get_client(user_token)
     response = supabase.table('proposals') \
         .update({
             'status': 'approved',
@@ -139,11 +148,11 @@ def approve_proposal(
 
     try:
         if proposal['proposal_type'] == 'ADD_ITEM':
-            _merge_add_item(proposal, reviewed_by)
+            _merge_add_item(proposal, reviewed_by, user_token=user_token)
         elif proposal['proposal_type'] == 'REPLACE_ITEM':
-            _merge_replace_item(proposal, reviewed_by)
+            _merge_replace_item(proposal, reviewed_by, user_token=user_token)
         elif proposal['proposal_type'] == 'DEPRECATE_ITEM':
-            _merge_deprecate_item(proposal, reviewed_by)
+            _merge_deprecate_item(proposal, reviewed_by, user_token=user_token)
     except Exception as e:
         logger.error(f"Merge failed for proposal {proposal_id}, reverting: {e}")
         supabase.table('proposals') \
@@ -167,16 +176,17 @@ def approve_proposal(
         metadata={'proposal_type': proposal['proposal_type']}
     )
 
-    return get_proposal(proposal_id)
+    return get_proposal(proposal_id, user_token=user_token)
 
 
 def reject_proposal(
     proposal_id: str,
     reviewed_by: str,
     review_notes: Optional[str] = None,
-    org_id: Optional[str] = None
+    org_id: Optional[str] = None,
+    user_token: Optional[str] = None
 ) -> Dict:
-    proposal = get_proposal(proposal_id)
+    proposal = get_proposal(proposal_id, user_token=user_token)
 
     if org_id and proposal['org_id'] != org_id:
         raise ForbiddenError("Cannot reject proposal from different organization")
@@ -184,7 +194,7 @@ def reject_proposal(
     if proposal['status'] != 'pending':
         raise ConflictError("Only pending proposals can be rejected")
 
-    supabase = get_supabase_admin()
+    supabase = _get_client(user_token)
     response = supabase.table('proposals') \
         .update({
             'status': 'rejected',
@@ -211,7 +221,7 @@ def reject_proposal(
     return response.data[0]
 
 
-def _merge_add_item(proposal: Dict, created_by: str):
+def _merge_add_item(proposal: Dict, created_by: str, user_token: Optional[str] = None):
     logger.info(f"Merging ADD_ITEM proposal {proposal['id']}")
     try:
         item = create_item(
@@ -225,7 +235,8 @@ def _merge_add_item(proposal: Dict, created_by: str):
             product_url=proposal.get('item_product_url'),
             vendor=proposal.get('item_vendor'),
             sku=proposal.get('item_sku'),
-            metadata=proposal.get('item_metadata', {})
+            metadata=proposal.get('item_metadata', {}),
+            user_token=user_token
         )
         logger.info(f"Created item {item['id']} from proposal {proposal['id']}")
         return item
@@ -234,7 +245,7 @@ def _merge_add_item(proposal: Dict, created_by: str):
         raise
 
 
-def _merge_replace_item(proposal: Dict, created_by: str):
+def _merge_replace_item(proposal: Dict, created_by: str, user_token: Optional[str] = None):
     old_item_id = proposal['replacing_item_id']
     logger.info(f"Merging REPLACE_ITEM proposal {proposal['id']}, replacing {old_item_id}")
 
@@ -250,13 +261,14 @@ def _merge_replace_item(proposal: Dict, created_by: str):
             product_url=proposal.get('item_product_url'),
             vendor=proposal.get('item_vendor'),
             sku=proposal.get('item_sku'),
-            metadata=proposal.get('item_metadata', {})
+            metadata=proposal.get('item_metadata', {}),
+            user_token=user_token
         )
 
         update_item(old_item_id, {
             'status': 'deprecated',
             'replacement_item_id': new_item['id']
-        }, updated_by=created_by)
+        }, updated_by=created_by, user_token=user_token)
 
         logger.info(f"Replaced {old_item_id} with {new_item['id']}")
     except Exception as e:
@@ -264,12 +276,12 @@ def _merge_replace_item(proposal: Dict, created_by: str):
         raise
 
 
-def _merge_deprecate_item(proposal: Dict, updated_by: str):
+def _merge_deprecate_item(proposal: Dict, updated_by: str, user_token: Optional[str] = None):
     item_id = proposal['replacing_item_id']
     logger.info(f"Merging DEPRECATE_ITEM proposal {proposal['id']}, deprecating {item_id}")
 
     try:
-        update_item(item_id, {'status': 'deprecated'}, updated_by=updated_by)
+        update_item(item_id, {'status': 'deprecated'}, updated_by=updated_by, user_token=user_token)
         logger.info(f"Deprecated item {item_id}")
     except Exception as e:
         logger.error(f"Failed to merge DEPRECATE_ITEM proposal {proposal['id']}: {e}")

@@ -24,7 +24,7 @@ class TestAdminAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "admin")
 
         mock_service.get_audit_log.return_value = [
@@ -60,7 +60,7 @@ class TestAdminAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "admin")
 
         mock_service.get_audit_log.return_value = [
@@ -95,7 +95,7 @@ class TestAdminAPI:
         # Setup mocks - requester role
         user_mock = Mock()
         user_mock.id = "user-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "requester")
 
         # Make request
@@ -115,7 +115,7 @@ class TestAdminAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "admin")
 
         mock_service.get_audit_log.return_value = [
@@ -161,7 +161,7 @@ class TestAdminAPI:
         # Setup mocks - reviewer role
         user_mock = Mock()
         user_mock.id = "reviewer-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "reviewer")
 
         # Make request
@@ -181,7 +181,7 @@ class TestAdminAPI:
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
-        mock_get_user.return_value = user_mock
+        mock_get_user.return_value = (user_mock, 'test-token')
         mock_org_role.return_value = ("org-123", "admin")
 
         mock_service.get_audit_log.return_value = []
