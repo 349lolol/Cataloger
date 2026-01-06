@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
-"""
-Setup verification script for CatalogAI.
-Checks that all dependencies and configuration are correct.
-"""
 import os
 import sys
 from pathlib import Path
 
 
 def check_env_file():
-    """Check if .env file exists and has required variables."""
     print("Checking .env file...")
     env_path = Path('.env')
 
     if not env_path.exists():
-        print("  ❌ .env file not found!")
-        print("  → Run: cp .env.example .env")
-        print("  → Then edit .env with your Supabase credentials")
+        print("  FAIL: .env file not found")
+        print("  Run: cp .env.example .env")
         return False
 
     required_vars = [
@@ -35,16 +29,14 @@ def check_env_file():
             missing.append(var)
 
     if missing:
-        print(f"  ⚠️  Missing or unconfigured variables: {', '.join(missing)}")
-        print("  → Edit .env and add your actual Supabase credentials")
+        print(f"  WARN: Missing or unconfigured: {', '.join(missing)}")
         return False
 
-    print("  ✅ .env file configured")
+    print("  OK: .env configured")
     return True
 
 
 def check_dependencies():
-    """Check if required Python packages are installed."""
     print("\nChecking Python dependencies...")
 
     required_packages = [
@@ -63,16 +55,15 @@ def check_dependencies():
             missing.append(package)
 
     if missing:
-        print(f"  ❌ Missing packages: {', '.join(missing)}")
-        print("  → Run: pip install -r requirements.txt")
+        print(f"  FAIL: Missing packages: {', '.join(missing)}")
+        print("  Run: pip install -r requirements.txt")
         return False
 
-    print("  ✅ All dependencies installed")
+    print("  OK: All dependencies installed")
     return True
 
 
 def check_supabase_connection():
-    """Check if we can connect to Supabase."""
     print("\nChecking Supabase connection...")
 
     try:
@@ -85,65 +76,56 @@ def check_supabase_connection():
         key = os.getenv('SUPABASE_KEY')
 
         if not url or not key:
-            print("  ❌ SUPABASE_URL or SUPABASE_KEY not set")
+            print("  FAIL: SUPABASE_URL or SUPABASE_KEY not set")
             return False
 
         client = create_client(url, key)
-        # Try a simple query to test connection
         client.table('orgs').select('id').limit(1).execute()
 
-        print("  ✅ Connected to Supabase")
+        print("  OK: Connected to Supabase")
         return True
     except Exception as e:
-        print(f"  ❌ Supabase connection failed: {e}")
-        print("  → Check your SUPABASE_URL and SUPABASE_KEY in .env")
-        print("  → Make sure you've run the database migrations")
+        print(f"  FAIL: Supabase connection failed: {e}")
         return False
 
 
 def check_embedding_model():
-    """Check if embedding model can be loaded."""
     print("\nChecking embedding model...")
 
     try:
         from sentence_transformers import SentenceTransformer
-        print("  ⏳ Loading model (this may take a minute on first run)...")
+        print("  Loading model...")
         model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-        print("  ✅ Embedding model loaded successfully")
+        print("  OK: Embedding model loaded")
         return True
     except Exception as e:
-        print(f"  ❌ Failed to load embedding model: {e}")
+        print(f"  FAIL: Failed to load embedding model: {e}")
         return False
 
 
 def check_docker():
-    """Check if Docker is available (for MCP sandbox)."""
-    print("\nChecking Docker (for MCP integration)...")
+    print("\nChecking Docker...")
 
     try:
         import docker
         client = docker.from_env()
         client.ping()
-        print("  ✅ Docker is running")
+        print("  OK: Docker is running")
 
-        # Check if sandbox image exists
         try:
             client.images.get('catalogai-sandbox:latest')
-            print("  ✅ Sandbox Docker image found")
+            print("  OK: Sandbox Docker image found")
         except docker.errors.ImageNotFound:
-            print("  ⚠️  Sandbox image not built yet")
-            print("  → Run: docker build -f catalogai_mcp/sandbox.Dockerfile -t catalogai-sandbox:latest .")
+            print("  WARN: Sandbox image not built")
+            print("  Run: docker build -f catalogai_mcp/sandbox.Dockerfile -t catalogai-sandbox:latest .")
 
         return True
     except Exception as e:
-        print(f"  ⚠️  Docker not available: {e}")
-        print("  → Docker is only needed for MCP code execution (Part C)")
-        print("  → You can skip this for basic API usage")
-        return True  # Not critical
+        print(f"  WARN: Docker not available: {e}")
+        return True
 
 
 def main():
-    """Run all checks."""
     print("=" * 60)
     print("CatalogAI Setup Verification")
     print("=" * 60)
@@ -158,13 +140,13 @@ def main():
 
     print("\n" + "=" * 60)
 
-    if all(checks[:4]):  # First 4 are critical
-        print("✅ All critical checks passed!")
-        print("\nYou can now run: python run.py")
-        print("API will be available at http://localhost:5000")
+    if all(checks[:4]):
+        print("All critical checks passed!")
+        print("\nRun: python run.py")
+        print("API: http://localhost:5000")
         return 0
     else:
-        print("❌ Some checks failed. Please fix the issues above.")
+        print("Some checks failed. Fix the issues above.")
         return 1
 
 

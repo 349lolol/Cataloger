@@ -1,13 +1,9 @@
-"""
-Unit tests for CatalogAI audit service.
-"""
 import pytest
 from unittest.mock import Mock, patch
 from app.services import audit_service
 
 
 class TestAuditService:
-    """Test audit service operations."""
 
     @patch('app.services.audit_service.get_supabase_admin')
     def test_log_event_success(self, mock_admin_getter):

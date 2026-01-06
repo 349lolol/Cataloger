@@ -1,6 +1,3 @@
-"""
-Unit tests for authentication middleware.
-"""
 import pytest
 from unittest.mock import patch, Mock
 from flask import Flask, g, jsonify
@@ -13,7 +10,6 @@ from app.middleware.auth_middleware import (
 
 
 class TestAuthMiddleware:
-    """Test authentication middleware functions."""
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_success(self, mock_supabase):

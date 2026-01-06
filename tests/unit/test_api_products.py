@@ -1,6 +1,3 @@
-"""
-Unit tests for products API endpoints.
-"""
 import pytest
 import json
 from unittest.mock import patch, Mock
@@ -8,7 +5,6 @@ from app.api.products import bp
 
 
 class TestProductsAPI:
-    """Test product enrichment API endpoints."""
 
     @patch('app.api.products.enrich_product')
     @patch('app.middleware.auth_middleware.get_user_from_token')

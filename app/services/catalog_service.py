@@ -1,10 +1,6 @@
-"""
-Catalog service for managing catalog items and semantic search.
-"""
 import logging
 from typing import List, Dict, Optional
-from uuid import UUID
-from app.extensions import get_supabase_client, get_supabase_admin
+from app.extensions import get_supabase_admin
 from app.services.embedding_service import encode_text, encode_catalog_item
 from app.services.audit_service import log_event
 
@@ -12,27 +8,8 @@ logger = logging.getLogger(__name__)
 
 
 def check_and_repair_embeddings(org_id: str) -> Dict:
-    """
-    Check for catalog items missing embeddings and regenerate them.
-    This is a maintenance function to fix any orphaned items.
-
-    Args:
-        org_id: Organization ID to check
-
-    Returns:
-        Dict with repair results:
-        {
-            "total_items": int,
-            "items_with_embeddings": int,
-            "items_without_embeddings": int,
-            "repaired": int,
-            "failed": int,
-            "failed_items": [item_ids]
-        }
-    """
     supabase_admin = get_supabase_admin()
 
-    # Get all active catalog items for this org
     items_response = supabase_admin.table('catalog_items') \
         .select('id, name, description, category') \
         .eq('org_id', org_id) \
@@ -41,7 +18,6 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
 
     total_items = len(items_response.data) if items_response.data else 0
 
-    # Get all embeddings for this org's items
     if total_items == 0:
         return {
             "total_items": 0,
@@ -63,7 +39,6 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
         emb['catalog_item_id'] for emb in (embeddings_response.data or [])
     )
 
-    # Find items without embeddings
     items_without_embeddings = [
         item for item in items_response.data
         if item['id'] not in embedded_item_ids
@@ -71,9 +46,6 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
 
     failed = 0
     failed_items = []
-
-    # Issue #21: Batch embeddings generation and insertion to reduce N+1 queries
-    # Generate embeddings first, then batch insert to database
     embeddings_to_insert = []
 
     for item in items_without_embeddings:
@@ -92,26 +64,22 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
             failed_items.append(item['id'])
             logger.error(f"Failed to generate embedding for item {item['id']}: {e}")
 
-    # Track actual successful inserts (not just generation)
     repaired = 0
 
-    # Batch insert all successful embeddings in one query
     if embeddings_to_insert:
         try:
             supabase_admin.table('catalog_item_embeddings').insert(embeddings_to_insert).execute()
-            # Only count as repaired after successful batch insert
             repaired = len(embeddings_to_insert)
         except Exception as e:
-            # If batch insert fails, fall back to individual inserts
             logger.warning(f"Batch insert failed, falling back to individual inserts: {e}")
             for emb_data in embeddings_to_insert:
                 try:
                     supabase_admin.table('catalog_item_embeddings').insert(emb_data).execute()
-                    repaired += 1  # Count only successful inserts
+                    repaired += 1
                 except Exception as insert_error:
                     failed += 1
                     failed_items.append(emb_data['catalog_item_id'])
-                    logger.error(f"Failed to insert embedding for item {emb_data['catalog_item_id']}: {insert_error}")
+                    logger.error(f"Failed to insert embedding: {insert_error}")
 
     return {
         "total_items": total_items,
@@ -123,29 +91,9 @@ def check_and_repair_embeddings(org_id: str) -> Dict:
     }
 
 
-def search_items(
-    query: str,
-    org_id: str,
-    threshold: float = 0.3,
-    limit: int = 10
-) -> List[Dict]:
-    """
-    Search catalog items using semantic similarity.
-
-    Args:
-        query: Natural language search query
-        org_id: Organization ID for filtering
-        threshold: Minimum similarity score (0-1)
-        limit: Maximum number of results
-
-    Returns:
-        List of matching catalog items with similarity scores
-    """
-    # Generate embedding for search query
+def search_items(query: str, org_id: str, threshold: float = 0.3, limit: int = 10) -> List[Dict]:
     query_embedding = encode_text(query)
 
-    # Call Supabase RPC function for vector search
-    # Use admin client to bypass RLS - org_id filtering is done explicitly
     supabase = get_supabase_admin()
     response = supabase.rpc(
         'search_catalog_items',
@@ -161,19 +109,6 @@ def search_items(
 
 
 def get_item(item_id: str) -> Dict:
-    """
-    Get a single catalog item by ID.
-
-    Args:
-        item_id: Catalog item UUID
-
-    Returns:
-        Catalog item data
-
-    Raises:
-        Exception: If item not found
-    """
-    # Use admin client to bypass RLS
     supabase = get_supabase_admin()
     response = supabase.table('catalog_items') \
         .select('*') \
@@ -188,18 +123,6 @@ def get_item(item_id: str) -> Dict:
 
 
 def list_items(org_id: str, status: Optional[str] = None, limit: int = 100) -> List[Dict]:
-    """
-    List catalog items for an organization.
-
-    Args:
-        org_id: Organization ID
-        status: Filter by status (optional)
-        limit: Maximum number of results
-
-    Returns:
-        List of catalog items
-    """
-    # Use admin client to bypass RLS - org_id filtering is done explicitly
     supabase = get_supabase_admin()
     query = supabase.table('catalog_items') \
         .select('*') \
@@ -227,28 +150,6 @@ def create_item(
     sku: Optional[str] = None,
     metadata: Optional[Dict] = None
 ) -> Dict:
-    """
-    Create a new catalog item with embedding.
-    This operation requires admin privileges (enforced by RLS).
-
-    Args:
-        org_id: Organization ID
-        name: Item name
-        description: Item description
-        category: Item category (e.g., Electronics, Furniture, Services)
-        created_by: User ID of creator
-        price: Price in USD (optional)
-        pricing_type: Billing type - 'one_time', 'monthly', 'yearly', 'usage_based' (optional)
-        product_url: Link to vendor/product page (optional)
-        vendor: Vendor or manufacturer name (optional)
-        sku: Stock Keeping Unit or product code (optional)
-        metadata: Additional flexible attributes (JSONB, optional)
-
-    Returns:
-        Created catalog item data
-    """
-    # Create catalog item with active status
-    # Note: catalog_items only supports 'active' or 'deprecated' status
     supabase_admin = get_supabase_admin()
     item_data = {
         'org_id': org_id,
@@ -259,7 +160,6 @@ def create_item(
         'status': 'active'
     }
 
-    # Add optional product fields
     if price is not None:
         item_data['price'] = price
     if pricing_type:
@@ -281,8 +181,6 @@ def create_item(
     item = item_response.data[0]
     item_id = item['id']
 
-    # Generate and store embedding
-    # CRITICAL: This must succeed for search to work
     try:
         embedding = encode_catalog_item(name, description, category)
         embedding_response = supabase_admin.table('catalog_item_embeddings').insert({
@@ -294,15 +192,12 @@ def create_item(
             raise Exception("Failed to create embedding")
 
     except Exception as e:
-        # Rollback: delete the catalog item if embedding creation fails
         try:
             supabase_admin.table('catalog_items').delete().eq('id', item_id).execute()
         except Exception as delete_error:
-            # Log but don't mask the original error
             logger.error(f"Failed to rollback item {item_id}: {delete_error}")
         raise Exception(f"Item creation failed: {str(e)}")
 
-    # Log audit event
     log_event(
         org_id=org_id,
         event_type='catalog.item.created',
@@ -316,20 +211,8 @@ def create_item(
 
 
 def update_item(item_id: str, updates: Dict, updated_by: str = None) -> Dict:
-    """
-    Update a catalog item and regenerate its embedding if content changed.
-
-    Args:
-        item_id: Catalog item UUID
-        updates: Dictionary of fields to update
-        updated_by: User ID of updater (for audit logging)
-
-    Returns:
-        Updated catalog item data
-    """
     supabase_admin = get_supabase_admin()
 
-    # Update the item
     response = supabase_admin.table('catalog_items') \
         .update(updates) \
         .eq('id', item_id) \
@@ -340,7 +223,6 @@ def update_item(item_id: str, updates: Dict, updated_by: str = None) -> Dict:
 
     updated_item = response.data[0]
 
-    # Regenerate embedding if content fields changed
     if any(key in updates for key in ['name', 'description', 'category']):
         try:
             embedding = encode_catalog_item(
@@ -348,22 +230,13 @@ def update_item(item_id: str, updates: Dict, updated_by: str = None) -> Dict:
                 updated_item.get('description', ''),
                 updated_item.get('category', '')
             )
-            embedding_response = supabase_admin.table('catalog_item_embeddings') \
+            supabase_admin.table('catalog_item_embeddings') \
                 .update({'embedding': embedding}) \
                 .eq('catalog_item_id', item_id) \
                 .execute()
-
-            if not embedding_response.data:
-                # Warning: embedding update failed but item was updated
-                # Log this but don't fail the entire operation
-                logger.warning(f"Failed to update embedding for item {item_id}")
-
         except Exception as e:
-            # Log error but don't fail the update operation
-            # The item data is still valid, just search might be degraded
             logger.error(f"Embedding regeneration failed for item {item_id}: {str(e)}")
 
-    # Log audit event if updated_by is provided
     if updated_by:
         event_type = 'catalog.item.deprecated' if updates.get('status') == 'deprecated' else 'catalog.item.updated'
         log_event(

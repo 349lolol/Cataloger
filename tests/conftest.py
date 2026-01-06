@@ -1,6 +1,3 @@
-"""
-Pytest configuration and fixtures.
-"""
 import pytest
 import os
 import sys
@@ -18,7 +15,6 @@ from app.config import get_settings
 
 @pytest.fixture(scope='session', autouse=True)
 def setup_test_env():
-    """Setup test environment variables."""
     os.environ['FLASK_ENV'] = 'testing'
     os.environ['FLASK_SECRET_KEY'] = 'test-secret-key-for-testing-only'
     os.environ['SUPABASE_URL'] = 'https://test.supabase.co'
@@ -30,7 +26,6 @@ def setup_test_env():
 
 @pytest.fixture
 def app():
-    """Create Flask app for testing."""
     app = create_app()
     app.config['TESTING'] = True
     return app
@@ -38,31 +33,26 @@ def app():
 
 @pytest.fixture
 def client(app):
-    """Create Flask test client."""
     return app.test_client()
 
 
 @pytest.fixture
 def mock_user_token():
-    """Mock JWT token for authenticated requests."""
     return "mock-jwt-token-for-testing"
 
 
 @pytest.fixture
 def mock_org_id():
-    """Mock organization ID."""
     return "00000000-0000-0000-0000-000000000001"
 
 
 @pytest.fixture
 def mock_user_id():
-    """Mock user ID."""
     return "00000000-0000-0000-0000-000000000002"
 
 
 @pytest.fixture
 def auth_headers(mock_user_token):
-    """Create authorization headers for testing."""
     return {
         'Authorization': f'Bearer {mock_user_token}',
         'Content-Type': 'application/json'
@@ -71,7 +61,6 @@ def auth_headers(mock_user_token):
 
 @pytest.fixture
 def sample_catalog_item():
-    """Sample catalog item data."""
     return {
         'name': 'Test Laptop',
         'description': 'A test laptop for unit testing',
@@ -82,7 +71,6 @@ def sample_catalog_item():
 
 @pytest.fixture
 def sample_search_query():
-    """Sample search query."""
     return {
         'query': 'laptop for development',
         'threshold': 0.3,
@@ -92,7 +80,6 @@ def sample_search_query():
 
 @pytest.fixture
 def sample_proposal():
-    """Sample proposal data."""
     return {
         'proposal_type': 'ADD_ITEM',
         'item_name': 'New Test Item',

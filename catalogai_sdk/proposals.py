@@ -1,11 +1,4 @@
-"""
-Proposal operations for CatalogAI SDK
-"""
-
-
 class ProposalClient:
-    """Client for proposal operations."""
-
     def __init__(self, http_client):
         self.client = http_client
 
@@ -24,26 +17,6 @@ class ProposalClient:
         replacing_item_id: str = None,
         request_id: str = None
     ):
-        """
-        Create a new proposal for catalog changes.
-
-        Args:
-            proposal_type: "ADD_ITEM", "REPLACE_ITEM", or "DEPRECATE_ITEM"
-            item_name: Item name (for ADD/REPLACE)
-            item_description: Item description (for ADD/REPLACE)
-            item_category: Item category (for ADD/REPLACE)
-            item_metadata: Item metadata dict (for ADD/REPLACE)
-            item_price: Price in USD (optional)
-            item_pricing_type: "one_time", "monthly", "yearly", or "usage_based" (optional)
-            item_vendor: Vendor name (optional)
-            item_sku: SKU or product code (optional)
-            item_product_url: Product URL (optional)
-            replacing_item_id: ID of item to replace/deprecate
-            request_id: Optional link to originating request
-
-        Returns:
-            Created proposal data
-        """
         data = {"proposal_type": proposal_type}
         if item_name:
             data["item_name"] = item_name
@@ -73,22 +46,11 @@ class ProposalClient:
         return response.json()
 
     def get(self, proposal_id: str):
-        """Get proposal by ID."""
         response = self.client.get(f"/api/proposals/{proposal_id}")
         response.raise_for_status()
         return response.json()
 
     def list(self, status: str = None, limit: int = 100):
-        """
-        List proposals (review queue).
-
-        Args:
-            status: Filter by status (optional)
-            limit: Maximum number of results
-
-        Returns:
-            List of proposals
-        """
         params = {"limit": limit}
         if status:
             params["status"] = status
@@ -98,16 +60,6 @@ class ProposalClient:
         return response.json()["proposals"]
 
     def approve(self, proposal_id: str, review_notes: str = None):
-        """
-        Approve a proposal (requires reviewer/admin role).
-
-        Args:
-            proposal_id: Proposal UUID
-            review_notes: Optional review comments
-
-        Returns:
-            Updated proposal data
-        """
         response = self.client.post(
             f"/api/proposals/{proposal_id}/approve",
             json={"review_notes": review_notes} if review_notes else {}
@@ -116,16 +68,6 @@ class ProposalClient:
         return response.json()
 
     def reject(self, proposal_id: str, review_notes: str = None):
-        """
-        Reject a proposal (requires reviewer/admin role).
-
-        Args:
-            proposal_id: Proposal UUID
-            review_notes: Optional review comments
-
-        Returns:
-            Updated proposal data
-        """
         response = self.client.post(
             f"/api/proposals/{proposal_id}/reject",
             json={"review_notes": review_notes} if review_notes else {}

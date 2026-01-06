@@ -1,6 +1,3 @@
-"""
-Catalog API endpoints for item management and semantic search.
-"""
 import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
@@ -8,28 +5,64 @@ from app.services import catalog_service, proposal_service
 from app.utils.resilience import safe_int, is_valid_uuid, validate_metadata
 
 logger = logging.getLogger(__name__)
-
 bp = Blueprint('catalog', __name__)
+
+VALID_PRICING_TYPES = ('one_time', 'monthly', 'yearly', 'usage_based')
+
+MAX_NAME_LENGTH = 255
+MAX_DESCRIPTION_LENGTH = 10000
+MAX_CATEGORY_LENGTH = 100
+MAX_VENDOR_LENGTH = 255
+MAX_SKU_LENGTH = 100
+MAX_URL_LENGTH = 2048
+MAX_PRICE = 10000000
+
+
+def _validate_string_field(value, field_name: str, max_length: int, required: bool = False) -> tuple:
+    if value is None:
+        if required:
+            return False, f"{field_name} is required"
+        return True, None
+
+    if not isinstance(value, str):
+        return False, f"{field_name} must be a string"
+
+    if len(value) > max_length:
+        return False, f"{field_name} must be at most {max_length} characters"
+
+    if '<script' in value.lower() or 'javascript:' in value.lower():
+        return False, f"{field_name} contains invalid content"
+
+    return True, None
+
+
+def _validate_url(url: str) -> tuple:
+    if url is None:
+        return True, None
+
+    if not isinstance(url, str):
+        return False, "product_url must be a string"
+
+    if len(url) > MAX_URL_LENGTH:
+        return False, f"product_url must be at most {MAX_URL_LENGTH} characters"
+
+    if url and not (url.startswith('http://') or url.startswith('https://')):
+        return False, "product_url must start with http:// or https://"
+
+    return True, None
 
 
 @bp.route('/catalog/search', methods=['POST'])
 @require_auth
 def search_items():
-    """
-    Semantic search for catalog items.
-    POST /api/catalog/search
-    Body: {"query": "search text", "threshold": 0.3, "limit": 10}
-    """
     data = request.get_json()
     if not data or 'query' not in data:
         return jsonify({"error": "Query is required"}), 400
 
-    # Issue #3.3: Validate threshold range (0.0 to 1.0)
     threshold = data.get('threshold', 0.3)
     if not isinstance(threshold, (int, float)) or threshold < 0.0 or threshold > 1.0:
         return jsonify({"error": "threshold must be a number between 0.0 and 1.0"}), 400
 
-    # Issue #3.3: Validate limit range (1 to 100 for search to prevent abuse)
     limit = data.get('limit', 10)
     if not isinstance(limit, int) or limit < 1 or limit > 100:
         return jsonify({"error": "limit must be an integer between 1 and 100"}), 400
@@ -50,10 +83,6 @@ def search_items():
 @bp.route('/catalog/items', methods=['GET'])
 @require_auth
 def list_items():
-    """
-    List catalog items for current organization.
-    GET /api/catalog/items?status=active&limit=100
-    """
     try:
         status = request.args.get('status')
         limit = safe_int(request.args.get('limit'), default=100, min_val=1, max_val=1000)
@@ -72,18 +101,12 @@ def list_items():
 @bp.route('/catalog/items/<item_id>', methods=['GET'])
 @require_auth
 def get_item(item_id):
-    """
-    Get a single catalog item by ID.
-    GET /api/catalog/items/:id
-    """
-    # Issue #23: Validate UUID format
     if not is_valid_uuid(item_id):
         return jsonify({"error": "Invalid item ID format"}), 400
 
     try:
         item = catalog_service.get_item(item_id)
 
-        # Verify org ownership (RLS should handle this, but double-check)
         if item['org_id'] != g.org_id:
             return jsonify({"error": "Forbidden"}), 403
 
@@ -93,111 +116,38 @@ def get_item(item_id):
         return jsonify({"error": "Item not found or unavailable"}), 500
 
 
-# Valid pricing types for catalog items
-VALID_PRICING_TYPES = ('one_time', 'monthly', 'yearly', 'usage_based')
-
-# Input validation limits
-MAX_NAME_LENGTH = 255
-MAX_DESCRIPTION_LENGTH = 10000
-MAX_CATEGORY_LENGTH = 100
-MAX_VENDOR_LENGTH = 255
-MAX_SKU_LENGTH = 100
-MAX_URL_LENGTH = 2048
-MAX_PRICE = 10000000  # $10 million max
-
-
-def _validate_string_field(value, field_name: str, max_length: int, required: bool = False) -> tuple:
-    """Validate a string field for length and content."""
-    if value is None:
-        if required:
-            return False, f"{field_name} is required"
-        return True, None
-
-    if not isinstance(value, str):
-        return False, f"{field_name} must be a string"
-
-    if len(value) > max_length:
-        return False, f"{field_name} must be at most {max_length} characters"
-
-    # Basic XSS prevention: reject script tags
-    if '<script' in value.lower() or 'javascript:' in value.lower():
-        return False, f"{field_name} contains invalid content"
-
-    return True, None
-
-
-def _validate_url(url: str) -> tuple:
-    """Validate URL format."""
-    if url is None:
-        return True, None
-
-    if not isinstance(url, str):
-        return False, "product_url must be a string"
-
-    if len(url) > MAX_URL_LENGTH:
-        return False, f"product_url must be at most {MAX_URL_LENGTH} characters"
-
-    # Basic URL format check
-    if url and not (url.startswith('http://') or url.startswith('https://')):
-        return False, "product_url must start with http:// or https://"
-
-    return True, None
-
-
 @bp.route('/catalog/items', methods=['POST'])
 @require_auth
 @require_role(['admin'])
 def create_item():
-    """
-    Create a new catalog item (admin only).
-    POST /api/catalog/items
-    Body: {
-        "name": "Product Name",
-        "description": "Product description",
-        "category": "Electronics | Furniture | Services | Office Supplies",
-        "price": 99.99,  // Optional
-        "pricing_type": "one_time | monthly | yearly | usage_based",  // Optional
-        "product_url": "https://vendor.com/product",  // Optional
-        "vendor": "Vendor Name",  // Optional
-        "sku": "PRODUCT-123",  // Optional
-        "metadata": {"brand": "...", "warranty": "..."}  // Optional flexible attrs
-    }
-    """
     data = request.get_json()
     if not data or 'name' not in data:
         return jsonify({"error": "Name is required"}), 400
 
-    # Validate name (required)
     valid, error = _validate_string_field(data.get('name'), 'name', MAX_NAME_LENGTH, required=True)
     if not valid:
         return jsonify({"error": error}), 400
 
-    # Validate description
     valid, error = _validate_string_field(data.get('description'), 'description', MAX_DESCRIPTION_LENGTH)
     if not valid:
         return jsonify({"error": error}), 400
 
-    # Validate category
     valid, error = _validate_string_field(data.get('category'), 'category', MAX_CATEGORY_LENGTH)
     if not valid:
         return jsonify({"error": error}), 400
 
-    # Validate vendor
     valid, error = _validate_string_field(data.get('vendor'), 'vendor', MAX_VENDOR_LENGTH)
     if not valid:
         return jsonify({"error": error}), 400
 
-    # Validate SKU
     valid, error = _validate_string_field(data.get('sku'), 'sku', MAX_SKU_LENGTH)
     if not valid:
         return jsonify({"error": error}), 400
 
-    # Validate product_url
     valid, error = _validate_url(data.get('product_url'))
     if not valid:
         return jsonify({"error": error}), 400
 
-    # Validate price
     price = data.get('price')
     if price is not None:
         if not isinstance(price, (int, float)):
@@ -206,16 +156,13 @@ def create_item():
             return jsonify({"error": "price cannot be negative"}), 400
         if price > MAX_PRICE:
             return jsonify({"error": f"price cannot exceed {MAX_PRICE}"}), 400
-        # Round to 2 decimal places for currency precision
         price = round(price, 2)
         data['price'] = price
 
-    # Validate pricing_type
     pricing_type = data.get('pricing_type')
     if pricing_type is not None and pricing_type not in VALID_PRICING_TYPES:
         return jsonify({"error": f"pricing_type must be one of: {', '.join(VALID_PRICING_TYPES)}"}), 400
 
-    # Issue #7.4: Validate metadata size to prevent abuse
     valid, error = validate_metadata(data.get('metadata'))
     if not valid:
         return jsonify({"error": error}), 400
@@ -243,50 +190,14 @@ def create_item():
 @bp.route('/catalog/request-new-item', methods=['POST'])
 @require_auth
 def request_new_item():
-    """
-    Request a new item to be added to the catalog.
-    This creates a proposal that needs reviewer/admin approval.
-
-    Use this when search doesn't return good results and you need a new item added.
-
-    POST /api/catalog/request-new-item
-
-    Body Option 1 - AI Enrichment (Recommended):
-    {
-        "name": "MacBook Pro 16 inch M3 Max",  // Just the product name
-        "use_ai_enrichment": true,             // Enable AI auto-fill
-        "justification": "Why this item is needed"
-    }
-    → AI will automatically populate: description, category, vendor, price, SKU, product_url, metadata
-
-    Body Option 2 - Manual Entry:
-    {
-        "name": "Item name",
-        "description": "Item description",
-        "category": "Category",
-        "metadata": {},
-        "price": 99.99,
-        "pricing_type": "one_time | monthly | yearly | usage_based",
-        "product_url": "https://...",
-        "vendor": "Vendor name",
-        "sku": "SKU-123",
-        "justification": "Why this item is needed",
-        "use_ai_enrichment": false  // or omit (default)
-    }
-
-    Returns:
-        Created proposal that will be reviewed by admins
-    """
     data = request.get_json()
     if not data or 'name' not in data:
         return jsonify({"error": "Item name is required"}), 400
 
     try:
-        # Determine if AI enrichment should be used
         use_ai = data.get('use_ai_enrichment', False)
 
         if use_ai:
-            # Use AI to enrich product data
             from app.services.product_enrichment_service import enrich_product
 
             enriched = enrich_product(
@@ -295,7 +206,6 @@ def request_new_item():
                 additional_context=data.get('justification')
             )
 
-            # Use enriched data, but allow manual overrides
             item_name = data.get('name', enriched['name'])
             item_description = data.get('description', enriched['description'])
             item_category = data.get('category', enriched['category'])
@@ -306,12 +216,9 @@ def request_new_item():
             item_sku = data.get('sku', enriched.get('sku'))
             item_metadata = data.get('metadata', enriched.get('metadata', {}))
 
-            # Add AI enrichment metadata
             item_metadata['ai_enriched'] = True
             item_metadata['ai_confidence'] = enriched.get('confidence', 'unknown')
-
         else:
-            # Use manually provided data
             item_name = data['name']
             item_description = data.get('description', '')
             item_category = data.get('category', '')
@@ -322,7 +229,6 @@ def request_new_item():
             item_sku = data.get('sku')
             item_metadata = data.get('metadata', {})
 
-        # Create a proposal for adding the new item
         proposal = proposal_service.create_proposal(
             org_id=g.org_id,
             proposed_by=g.user_id,
@@ -340,11 +246,9 @@ def request_new_item():
 
         response_data = {
             "message": "New item request submitted for review",
-            "proposal": proposal,
-            "next_steps": "A reviewer will approve or reject your request. You'll be notified of the decision."
+            "proposal": proposal
         }
 
-        # If AI enrichment was used, include the enrichment data in response
         if use_ai:
             response_data["ai_enrichment"] = enriched
 

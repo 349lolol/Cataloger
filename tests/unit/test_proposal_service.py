@@ -1,13 +1,9 @@
-"""
-Unit tests for CatalogAI proposal service.
-"""
 import pytest
 from unittest.mock import Mock, patch
 from app.services import proposal_service
 
 
 class TestProposalService:
-    """Test proposal service operations."""
 
     @patch('app.services.proposal_service.get_supabase_client')
     @patch('app.services.audit_service.log_event')

@@ -1,6 +1,3 @@
-"""
-Unit tests for product enrichment service.
-"""
 import pytest
 import json
 from unittest.mock import patch, Mock, MagicMock
@@ -12,7 +9,6 @@ from app.services.product_enrichment_service import (
 
 
 class TestProductEnrichmentService:
-    """Test product enrichment service functions."""
 
     @patch('app.services.product_enrichment_service.get_settings')
     @patch('app.services.product_enrichment_service.genai')

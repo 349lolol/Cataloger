@@ -1,23 +1,17 @@
-"""
-Unit tests for CatalogAI proposals API endpoints.
-"""
 import pytest
 import json
 from unittest.mock import Mock, patch
 from app import create_app
 
-# Test UUIDs (valid format for UUID validation)
 TEST_PROPOSAL_UUID = '22222222-3333-4444-5555-666666666666'
 TEST_ORG_UUID = '87654321-4321-4321-4321-cba987654321'
 TEST_USER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 
 
 class TestProposalsAPI:
-    """Test proposals API endpoints."""
 
     @pytest.fixture
     def app(self):
-        """Create Flask app for testing."""
         app = create_app()
         app.config['TESTING'] = True
         return app

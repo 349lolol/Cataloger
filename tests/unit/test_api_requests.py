@@ -1,27 +1,20 @@
-"""
-Unit tests for CatalogAI requests API endpoints.
-"""
 import pytest
 import json
 from unittest.mock import Mock, patch
 from app import create_app
 
-# Test UUIDs (valid format for UUID validation)
 TEST_REQUEST_UUID = '11111111-2222-3333-4444-555555555555'
 TEST_ORG_UUID = '87654321-4321-4321-4321-cba987654321'
 TEST_USER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 
 
 class TestRequestsAPI:
-    """Test requests API endpoints."""
 
     @pytest.fixture
     def client(self, app):
-        """Create test client."""
         return app.test_client()
 
     def _mock_auth(self, user_id="user-123", org_id="org-123", role="requester"):
-        """Helper to mock authentication."""
         def mock_user_from_token():
             user = Mock()
             user.id = user_id

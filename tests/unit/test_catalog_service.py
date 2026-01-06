@@ -1,13 +1,9 @@
-"""
-Unit tests for catalog service.
-"""
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 from app.services import catalog_service
 
 
 class TestCatalogService:
-    """Test catalog service functions."""
 
     @patch('app.services.catalog_service.get_supabase_client')
     @patch('app.services.catalog_service.encode_text')

@@ -1,6 +1,3 @@
-"""
-Requests API endpoints for procurement request management.
-"""
 import logging
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
@@ -14,15 +11,6 @@ bp = Blueprint('requests', __name__)
 @bp.route('/requests', methods=['POST'])
 @require_auth
 def create_request():
-    """
-    Create a new procurement request.
-    POST /api/requests
-    Body: {
-        "search_query": "...",
-        "search_results": [...],
-        "justification": "..."
-    }
-    """
     data = request.get_json()
     if not data or 'search_query' not in data:
         return jsonify({"error": "search_query is required"}), 400
@@ -44,10 +32,6 @@ def create_request():
 @bp.route('/requests', methods=['GET'])
 @require_auth
 def list_requests():
-    """
-    List requests for current organization.
-    GET /api/requests?status=pending&created_by=...
-    """
     try:
         status = request.args.get('status')
         created_by = request.args.get('created_by')
@@ -68,18 +52,12 @@ def list_requests():
 @bp.route('/requests/<request_id>', methods=['GET'])
 @require_auth
 def get_request(request_id):
-    """
-    Get a single request by ID.
-    GET /api/requests/:id
-    """
-    # Issue #23: Validate UUID format
     if not is_valid_uuid(request_id):
         return jsonify({"error": "Invalid request ID format"}), 400
 
     try:
         req = request_service.get_request(request_id)
 
-        # Verify org ownership
         if req['org_id'] != g.org_id:
             return jsonify({"error": "Forbidden"}), 403
 
@@ -93,45 +71,6 @@ def get_request(request_id):
 @require_auth
 @require_role(['reviewer', 'admin'])
 def review_request(request_id):
-    """
-    Approve or reject a request (reviewer/admin only).
-
-    POST /api/requests/:id/review
-
-    Body: {
-        "status": "approved" | "rejected",
-        "review_notes": "...",  // Optional
-
-        // OPTIONAL: Auto-create proposal when approving
-        // Use this to streamline the workflow: approve request + create proposal in one step
-        // If omitted, the request is simply marked approved (useful when item already exists)
-        "create_proposal": {
-            "proposal_type": "ADD_ITEM" | "REPLACE_ITEM" | "DEPRECATE_ITEM",
-            "item_name": "...",
-            "item_description": "...",
-            "item_category": "...",
-            "item_metadata": {},
-            "item_price": 99.99,
-            "item_pricing_type": "one_time | monthly | yearly | usage_based",
-            "item_product_url": "https://...",
-            "item_vendor": "...",
-            "item_sku": "...",
-            "replacing_item_id": "..."  // For REPLACE/DEPRECATE only
-        }
-    }
-
-    Response (if create_proposal provided):
-    {
-        ...request fields...,
-        "proposal": {...}  // Auto-created proposal linked to this request
-    }
-
-    Workflow Options:
-    1. Approve WITHOUT proposal: Request marked approved, no further action
-    2. Approve WITH proposal: Request marked approved + proposal auto-created
-    3. Reject: Request marked rejected (create_proposal ignored)
-    """
-    # Issue #23: Validate UUID format
     if not is_valid_uuid(request_id):
         return jsonify({"error": "Invalid request ID format"}), 400
 
@@ -149,10 +88,10 @@ def review_request(request_id):
             status=data['status'],
             review_notes=data.get('review_notes'),
             create_proposal=data.get('create_proposal'),
-            org_id=g.org_id  # Issue #9: Pass org_id for authorization
+            org_id=g.org_id
         )
         return jsonify(req), 200
-    except PermissionError as e:
+    except PermissionError:
         return jsonify({"error": "Forbidden"}), 403
     except Exception as e:
         logger.exception(f"Review request failed for {request_id}: {e}")

@@ -1,14 +1,9 @@
-"""
-Unit tests for embedding service.
-Tests the Gemini-based embedding generation functions.
-"""
 import pytest
 from unittest.mock import patch, Mock
 from app.services.embedding_service import encode_text, encode_batch, encode_catalog_item
 
 
 class TestEmbeddingService:
-    """Test embedding service functions."""
 
     @patch('app.services.embedding_service.genai')
     def test_encode_text_returns_list(self, mock_genai):

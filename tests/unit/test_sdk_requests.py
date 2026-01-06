@@ -1,6 +1,3 @@
-"""
-Unit tests for CatalogAI Python SDK - Request operations.
-"""
 import pytest
 from unittest.mock import Mock
 import httpx
@@ -8,11 +5,8 @@ from catalogai_sdk.requests import RequestClient
 
 
 class TestRequestClient:
-    """Test CatalogAI SDK request client."""
 
     def test_create_request_success(self):
-        """Test successful request creation."""
-        # Setup mock HTTP client
         mock_client = Mock()
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -23,7 +17,6 @@ class TestRequestClient:
         }
         mock_client.post.return_value = mock_response
 
-        # Create client and create request
         client = RequestClient(mock_client)
         result = client.create(
             search_query="laptop",
@@ -31,7 +24,6 @@ class TestRequestClient:
             justification="Need for work"
         )
 
-        # Assertions
         mock_client.post.assert_called_once_with(
             "/api/requests",
             json={
@@ -44,8 +36,6 @@ class TestRequestClient:
         assert result["status"] == "pending"
 
     def test_create_request_raises_on_error(self):
-        """Test create raises exception on HTTP error."""
-        # Setup mock to raise error
         mock_client = Mock()
         mock_response = Mock()
         mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
@@ -53,16 +43,12 @@ class TestRequestClient:
         )
         mock_client.post.return_value = mock_response
 
-        # Create client
         client = RequestClient(mock_client)
 
-        # Should raise exception
         with pytest.raises(httpx.HTTPStatusError):
             client.create(search_query="test", search_results=[])
 
     def test_get_request(self):
-        """Test get request by ID."""
-        # Setup mock
         mock_client = Mock()
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -72,21 +58,16 @@ class TestRequestClient:
         }
         mock_client.get.return_value = mock_response
 
-        # Create client and get request
         client = RequestClient(mock_client)
         result = client.get("request-123")
 
-        # Assertions
         mock_client.get.assert_called_once_with("/api/requests/request-123")
         assert result["id"] == "request-123"
         assert result["search_query"] == "laptop"
 
     def test_list_requests(self):
-        """Test list all requests."""
-        # Setup mock
         mock_client = Mock()
         mock_response = Mock()
-        # API returns wrapped response
         mock_response.json.return_value = {
             "requests": [
                 {"id": "request-1", "status": "pending"},
@@ -95,18 +76,13 @@ class TestRequestClient:
         }
         mock_client.get.return_value = mock_response
 
-        # Create client and list
         client = RequestClient(mock_client)
         result = client.list()
 
-        # Assertions
         mock_client.get.assert_called_once_with("/api/requests", params={"limit": 100})
-        # SDK unwraps the response
         assert len(result) == 2
 
     def test_list_requests_with_status_filter(self):
-        """Test list requests with status filter."""
-        # Setup mock
         mock_client = Mock()
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -117,11 +93,9 @@ class TestRequestClient:
         }
         mock_client.get.return_value = mock_response
 
-        # Create client and list with filter
         client = RequestClient(mock_client)
         result = client.list(status="pending")
 
-        # Assertions
         mock_client.get.assert_called_once_with(
             "/api/requests",
             params={"limit": 100, "status": "pending"}
@@ -129,8 +103,6 @@ class TestRequestClient:
         assert len(result) == 2
 
     def test_review_request_approve(self):
-        """Test reviewing a request to approve."""
-        # Setup mock
         mock_client = Mock()
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -140,7 +112,6 @@ class TestRequestClient:
         }
         mock_client.post.return_value = mock_response
 
-        # Create client and review (approve)
         client = RequestClient(mock_client)
         result = client.review(
             request_id="request-123",
@@ -148,19 +119,13 @@ class TestRequestClient:
             review_notes="Looks good"
         )
 
-        # Assertions
         mock_client.post.assert_called_once_with(
             "/api/requests/request-123/review",
-            json={
-                "status": "approved",
-                "review_notes": "Looks good"
-            }
+            json={"status": "approved", "review_notes": "Looks good"}
         )
         assert result["status"] == "approved"
 
     def test_review_request_reject(self):
-        """Test reviewing a request to reject."""
-        # Setup mock
         mock_client = Mock()
         mock_response = Mock()
         mock_response.json.return_value = {
@@ -170,7 +135,6 @@ class TestRequestClient:
         }
         mock_client.post.return_value = mock_response
 
-        # Create client and review (reject)
         client = RequestClient(mock_client)
         result = client.review(
             request_id="request-123",
@@ -178,33 +142,22 @@ class TestRequestClient:
             review_notes="Budget constraints"
         )
 
-        # Assertions
         mock_client.post.assert_called_once_with(
             "/api/requests/request-123/review",
-            json={
-                "status": "rejected",
-                "review_notes": "Budget constraints"
-            }
+            json={"status": "rejected", "review_notes": "Budget constraints"}
         )
         assert result["status"] == "rejected"
 
     def test_review_request_without_notes(self):
-        """Test reviewing request without notes."""
-        # Setup mock
         mock_client = Mock()
         mock_response = Mock()
         mock_response.json.return_value = {"id": "request-123", "status": "approved"}
         mock_client.post.return_value = mock_response
 
-        # Create client and review without notes
         client = RequestClient(mock_client)
         result = client.review(request_id="request-123", status="approved")
 
-        # Should pass None for review_notes
         mock_client.post.assert_called_once_with(
             "/api/requests/request-123/review",
-            json={
-                "status": "approved",
-                "review_notes": None
-            }
+            json={"status": "approved", "review_notes": None}
         )

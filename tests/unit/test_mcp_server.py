@@ -1,17 +1,8 @@
-"""
-Unit tests for MCP server structure and components.
-
-Tests verify the MCP server file structure, API error handling,
-and key components without requiring the mcp package to be installed.
-
-For full MCP integration tests, see catalogai_mcp/test_setup.py
-"""
 import pytest
 import os
 
 
 class TestMCPServerStructure:
-    """Test MCP server file structure and basic components."""
 
     def test_server_file_exists(self):
         """Test that server.py exists."""

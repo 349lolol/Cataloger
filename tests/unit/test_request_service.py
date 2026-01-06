@@ -1,13 +1,9 @@
-"""
-Unit tests for CatalogAI request service.
-"""
 import pytest
 from unittest.mock import Mock, patch
 from app.services import request_service
 
 
 class TestRequestService:
-    """Test request service operations."""
 
     @patch('app.services.request_service.get_supabase_client')
     @patch('app.services.request_service.log_event')

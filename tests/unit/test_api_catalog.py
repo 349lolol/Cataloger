@@ -1,18 +1,13 @@
-"""
-Unit tests for catalog API endpoints.
-"""
 import pytest
 import json
 from unittest.mock import patch, Mock
 
-# Test UUIDs (valid format for UUID validation)
 TEST_ITEM_UUID = '12345678-1234-1234-1234-123456789abc'
 TEST_ORG_UUID = '87654321-4321-4321-4321-cba987654321'
 TEST_USER_UUID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee'
 
 
 class TestCatalogAPI:
-    """Test catalog API endpoints."""
 
     @patch('app.api.catalog.catalog_service.search_items')
     @patch('app.middleware.auth_middleware.get_user_from_token')

@@ -1,16 +1,3 @@
-"""
-Automated seeding script for CatalogAI.
-
-Creates a test organization with:
-- 10 test users (3 admins, 3 reviewers, 4 requesters)
-- ~60 hardware products (laptops, monitors, peripherals, furniture)
-- ~40 SaaS services (deduplicated by purpose)
-- Sample requests and proposals
-
-Total: ~100 enterprise-grade catalog items with AI enrichment.
-
-Fully automated - no manual steps required.
-"""
 import os
 import sys
 from dotenv import load_dotenv
@@ -290,17 +277,11 @@ HARDWARE_PRODUCTS = (
 
 
 def generate_password():
-    """Generate a secure random password."""
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*()"
     return ''.join(secrets.choice(alphabet) for _ in range(16))
 
 
 def create_test_user(email, password, full_name):
-    """
-    Create a test user via Supabase Auth API.
-
-    Returns user_id on success, None on failure.
-    """
     supabase = get_supabase_admin()
 
     try:
@@ -326,7 +307,6 @@ def create_test_user(email, password, full_name):
 
 
 def seed_organization():
-    """Create test organization."""
     supabase = get_supabase_admin()
 
     print("\n[ORG] Creating Organization...")
@@ -351,11 +331,6 @@ def seed_organization():
 
 
 def seed_users(org_id):
-    """
-    Create test users and add them to the organization.
-
-    Returns dict mapping email -> user_id
-    """
     supabase = get_supabase_admin()
 
     print(f"\n[USERS] Creating {len(TEST_USERS)} Test Users...")
@@ -394,14 +369,6 @@ def seed_users(org_id):
 
 
 def seed_catalog_items(org_id, admin_user_id, use_ai=True):
-    """
-    Seed catalog with hardware products and SaaS services.
-
-    Args:
-        org_id: Organization ID
-        admin_user_id: Admin user ID for created_by
-        use_ai: Whether to use Gemini AI enrichment (default: True)
-    """
     all_products = HARDWARE_PRODUCTS + SAAS_SERVICES
     total = len(all_products)
 
@@ -472,13 +439,6 @@ def seed_catalog_items(org_id, admin_user_id, use_ai=True):
 
 
 def seed_sample_requests(org_id, user_map):
-    """
-    Create sample requests from requester users.
-
-    Args:
-        org_id: Organization ID
-        user_map: Dict mapping email -> user_id
-    """
     supabase = get_supabase_admin()
 
     # Get requester user IDs
@@ -532,7 +492,6 @@ def seed_sample_requests(org_id, user_map):
 
 
 def clear_seeded_items(org_id):
-    """Delete all previously seeded catalog items."""
     supabase = get_supabase_admin()
 
     print("\n[CLEAR] Removing previously seeded catalog items...")
@@ -554,7 +513,6 @@ def clear_seeded_items(org_id):
 
 
 def seed_items_only():
-    """Regenerate only catalog items (clear old ones first)."""
     print("=" * 70)
     print("CatalogAI - Regenerate Catalog Items")
     print("=" * 70)
@@ -624,7 +582,6 @@ def seed_items_only():
 
 
 def main():
-    """Main seeding function."""
     print("=" * 70)
     print("CatalogAI Automated Seeding Script")
     print("=" * 70)

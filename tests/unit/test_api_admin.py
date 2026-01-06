@@ -1,6 +1,3 @@
-"""
-Unit tests for CatalogAI admin API endpoints.
-"""
 import pytest
 import json
 from unittest.mock import Mock, patch
@@ -8,18 +5,15 @@ from app import create_app
 
 
 class TestAdminAPI:
-    """Test admin API endpoints."""
 
     @pytest.fixture
     def app(self):
-        """Create Flask app for testing."""
         app = create_app()
         app.config['TESTING'] = True
         return app
 
     @pytest.fixture
     def client(self, app):
-        """Create test client."""
         return app.test_client()
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
