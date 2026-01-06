@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
-from app.middleware.error_responses import BadRequestError, ForbiddenError
+from app.middleware.error_responses import BadRequestError
 from app.services import catalog_service, proposal_service
-from app.utils.resilience import safe_int, is_valid_uuid, validate_metadata
+from app.utils.resilience import safe_int, require_valid_uuid, validate_metadata, check_org_access
 
 bp = Blueprint('catalog', __name__)
 
@@ -88,13 +88,10 @@ def list_items():
 @bp.route('/catalog/items/<item_id>', methods=['GET'])
 @require_auth
 def get_item(item_id):
-    if not is_valid_uuid(item_id):
-        raise BadRequestError("Invalid item ID format")
+    require_valid_uuid(item_id, "item ID")
 
     item = catalog_service.get_item(item_id)
-
-    if item['org_id'] != g.org_id:
-        raise ForbiddenError()
+    check_org_access(item, g.org_id, "catalog item")
 
     return jsonify(item), 200
 

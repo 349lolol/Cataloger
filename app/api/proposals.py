@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
-from app.middleware.error_responses import BadRequestError, ForbiddenError
+from app.middleware.error_responses import BadRequestError
 from app.services import proposal_service
 from app.services.proposal_service import VALID_PROPOSAL_TYPES
-from app.utils.resilience import safe_int, is_valid_uuid, validate_metadata
+from app.utils.resilience import safe_int, require_valid_uuid, validate_metadata, check_org_access
 
 bp = Blueprint('proposals', __name__)
 
@@ -20,12 +20,12 @@ def create_proposal():
         raise BadRequestError(f"Invalid proposal_type. Must be one of: {', '.join(VALID_PROPOSAL_TYPES)}")
 
     replacing_item_id = data.get('replacing_item_id')
-    if replacing_item_id and not is_valid_uuid(replacing_item_id):
-        raise BadRequestError("Invalid replacing_item_id format")
+    if replacing_item_id:
+        require_valid_uuid(replacing_item_id, "replacing_item_id")
 
     request_id = data.get('request_id')
-    if request_id and not is_valid_uuid(request_id):
-        raise BadRequestError("Invalid request_id format")
+    if request_id:
+        require_valid_uuid(request_id, "request_id")
 
     valid, error = validate_metadata(data.get('item_metadata'))
     if not valid:
@@ -67,13 +67,10 @@ def list_proposals():
 @bp.route('/proposals/<proposal_id>', methods=['GET'])
 @require_auth
 def get_proposal(proposal_id):
-    if not is_valid_uuid(proposal_id):
-        raise BadRequestError("Invalid proposal ID format")
+    require_valid_uuid(proposal_id, "proposal ID")
 
     proposal = proposal_service.get_proposal(proposal_id)
-
-    if proposal['org_id'] != g.org_id:
-        raise ForbiddenError()
+    check_org_access(proposal, g.org_id, "proposal")
 
     return jsonify(proposal), 200
 
@@ -82,8 +79,7 @@ def get_proposal(proposal_id):
 @require_auth
 @require_role(['reviewer', 'admin'])
 def approve_proposal(proposal_id):
-    if not is_valid_uuid(proposal_id):
-        raise BadRequestError("Invalid proposal ID format")
+    require_valid_uuid(proposal_id, "proposal ID")
 
     data = request.get_json() or {}
 
@@ -100,8 +96,7 @@ def approve_proposal(proposal_id):
 @require_auth
 @require_role(['reviewer', 'admin'])
 def reject_proposal(proposal_id):
-    if not is_valid_uuid(proposal_id):
-        raise BadRequestError("Invalid proposal ID format")
+    require_valid_uuid(proposal_id, "proposal ID")
 
     data = request.get_json() or {}
 

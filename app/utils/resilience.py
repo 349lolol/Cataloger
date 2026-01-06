@@ -37,6 +37,20 @@ def is_valid_uuid(value: str) -> bool:
     return bool(uuid_pattern.match(str(value))) if value else False
 
 
+def require_valid_uuid(value: str, field_name: str = "ID") -> None:
+    """Validate UUID format and raise BadRequestError if invalid."""
+    from app.middleware.error_responses import BadRequestError
+    if not is_valid_uuid(value):
+        raise BadRequestError(f"Invalid {field_name} format")
+
+
+def check_org_access(resource: dict, org_id: str, resource_name: str = "resource") -> None:
+    """Check if resource belongs to org and raise ForbiddenError if not."""
+    from app.middleware.error_responses import ForbiddenError
+    if resource.get('org_id') != org_id:
+        raise ForbiddenError(f"Access denied to {resource_name}")
+
+
 def validate_metadata(metadata: Any, max_keys: int = 50, max_size_bytes: int = 65536) -> tuple[bool, str]:
     import json
 

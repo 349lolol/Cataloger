@@ -1,8 +1,8 @@
 from flask import Blueprint, request, jsonify, g
 from app.middleware.auth_middleware import require_auth, require_role
-from app.middleware.error_responses import BadRequestError, ForbiddenError
+from app.middleware.error_responses import BadRequestError
 from app.services import request_service
-from app.utils.resilience import safe_int, is_valid_uuid
+from app.utils.resilience import safe_int, require_valid_uuid, check_org_access
 
 bp = Blueprint('requests', __name__)
 
@@ -43,13 +43,10 @@ def list_requests():
 @bp.route('/requests/<request_id>', methods=['GET'])
 @require_auth
 def get_request(request_id):
-    if not is_valid_uuid(request_id):
-        raise BadRequestError("Invalid request ID format")
+    require_valid_uuid(request_id, "request ID")
 
     req = request_service.get_request(request_id)
-
-    if req['org_id'] != g.org_id:
-        raise ForbiddenError()
+    check_org_access(req, g.org_id, "request")
 
     return jsonify(req), 200
 
@@ -58,8 +55,7 @@ def get_request(request_id):
 @require_auth
 @require_role(['reviewer', 'admin'])
 def review_request(request_id):
-    if not is_valid_uuid(request_id):
-        raise BadRequestError("Invalid request ID format")
+    require_valid_uuid(request_id, "request ID")
 
     data = request.get_json()
     if not data or 'status' not in data:
