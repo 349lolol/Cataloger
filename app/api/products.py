@@ -1,9 +1,8 @@
-import logging
-from flask import Blueprint, request, jsonify, g
+from flask import Blueprint, request, jsonify
 from app.middleware.auth_middleware import require_auth
+from app.middleware.error_responses import BadRequestError
 from app.services.product_enrichment_service import enrich_product, enrich_product_batch
 
-logger = logging.getLogger(__name__)
 bp = Blueprint('products', __name__)
 
 
@@ -13,22 +12,15 @@ def enrich_product_endpoint():
     data = request.get_json()
 
     if not data or 'product_name' not in data:
-        return jsonify({"error": "product_name is required"}), 400
+        raise BadRequestError("product_name is required")
 
-    try:
-        enriched_data = enrich_product(
-            product_name=data['product_name'],
-            category=data.get('category'),
-            additional_context=data.get('additional_context')
-        )
+    enriched_data = enrich_product(
+        product_name=data['product_name'],
+        category=data.get('category'),
+        additional_context=data.get('additional_context')
+    )
 
-        return jsonify(enriched_data), 200
-
-    except ValueError as e:
-        return jsonify({"error": f"Validation error: {str(e)}"}), 400
-    except Exception as e:
-        logger.exception(f"Product enrichment failed: {e}")
-        return jsonify({"error": "Product enrichment temporarily unavailable"}), 500
+    return jsonify(enriched_data), 200
 
 
 @bp.route('/products/enrich-batch', methods=['POST'])
@@ -37,18 +29,13 @@ def enrich_product_batch_endpoint():
     data = request.get_json()
 
     if not data or 'product_names' not in data:
-        return jsonify({"error": "product_names is required"}), 400
+        raise BadRequestError("product_names is required")
 
     if not isinstance(data['product_names'], list):
-        return jsonify({"error": "product_names must be an array"}), 400
+        raise BadRequestError("product_names must be an array")
 
     if len(data['product_names']) > 20:
-        return jsonify({"error": "Maximum 20 products per batch"}), 400
+        raise BadRequestError("Maximum 20 products per batch")
 
-    try:
-        results = enrich_product_batch(data['product_names'])
-        return jsonify({"results": results}), 200
-
-    except Exception as e:
-        logger.exception(f"Batch enrichment failed: {e}")
-        return jsonify({"error": "Batch enrichment temporarily unavailable"}), 500
+    results = enrich_product_batch(data['product_names'])
+    return jsonify({"results": results}), 200

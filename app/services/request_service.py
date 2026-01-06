@@ -1,19 +1,20 @@
 from typing import List, Dict, Optional, Any
 from app.extensions import get_supabase_admin
 from app.services.audit_service import log_event
+from app.middleware.error_responses import NotFoundError, BadRequestError, ForbiddenError, ConflictError, DatabaseError
 
 
 def _validate_search_results(search_results: Any) -> List[Dict]:
     if not isinstance(search_results, list):
-        raise ValueError("search_results must be a list")
+        raise BadRequestError("search_results must be a list")
 
     validated_results = []
     for idx, result in enumerate(search_results):
         if not isinstance(result, dict):
-            raise ValueError(f"search_results[{idx}] must be a dictionary")
+            raise BadRequestError(f"search_results[{idx}] must be a dictionary")
 
         if 'name' not in result:
-            raise ValueError(f"search_results[{idx}] missing required field 'name'")
+            raise BadRequestError(f"search_results[{idx}] missing required field 'name'")
 
         normalized = {
             'name': str(result['name']),
@@ -54,7 +55,7 @@ def create_request(
     }).execute()
 
     if not response.data:
-        raise Exception("Failed to create request")
+        raise DatabaseError("Failed to create request")
 
     request = response.data[0]
 
@@ -79,7 +80,7 @@ def get_request(request_id: str) -> Dict:
         .execute()
 
     if not response.data:
-        raise Exception(f"Request not found: {request_id}")
+        raise NotFoundError("Request", request_id)
 
     return response.data
 
@@ -115,15 +116,15 @@ def review_request(
     org_id: Optional[str] = None
 ) -> Dict:
     if status not in ['approved', 'rejected']:
-        raise ValueError("Status must be 'approved' or 'rejected'")
+        raise BadRequestError("Status must be 'approved' or 'rejected'")
 
     current_request = get_request(request_id)
 
     if org_id and current_request['org_id'] != org_id:
-        raise PermissionError("Cannot review request from different organization")
+        raise ForbiddenError("Cannot review request from different organization")
 
     if current_request['status'] != 'pending':
-        raise Exception(f"Only pending requests can be reviewed (current: {current_request['status']})")
+        raise ConflictError(f"Only pending requests can be reviewed (current: {current_request['status']})")
 
     supabase = get_supabase_admin()
     response = supabase.table('requests') \
@@ -138,7 +139,7 @@ def review_request(
         .execute()
 
     if not response.data:
-        raise Exception("Failed to review request - may have been already reviewed")
+        raise ConflictError("Failed to review request - may have been already reviewed")
 
     request = response.data[0]
 

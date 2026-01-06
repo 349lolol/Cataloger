@@ -1,6 +1,7 @@
 import pytest
 import json
 from unittest.mock import patch, Mock
+from tests.conftest import get_error_message
 
 TEST_ITEM_UUID = '12345678-1234-1234-1234-123456789abc'
 TEST_ORG_UUID = '87654321-4321-4321-4321-cba987654321'
@@ -427,7 +428,7 @@ class TestCatalogAPI:
             json={'name': '<script>alert("xss")</script>'}
         )
         assert response.status_code == 400
-        assert 'invalid content' in response.get_json()['error']
+        assert 'invalid content' in get_error_message(response.get_json())
 
         # Test javascript: in description
         response = client.post(
@@ -453,7 +454,7 @@ class TestCatalogAPI:
             }
         )
         assert response.status_code == 400
-        assert 'http' in response.get_json()['error']
+        assert 'http' in get_error_message(response.get_json())
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -471,7 +472,7 @@ class TestCatalogAPI:
             }
         )
         assert response.status_code == 400
-        assert 'pricing_type' in response.get_json()['error']
+        assert 'pricing_type' in get_error_message(response.get_json())
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -489,7 +490,7 @@ class TestCatalogAPI:
             }
         )
         assert response.status_code == 400
-        assert 'negative' in response.get_json()['error']
+        assert 'negative' in get_error_message(response.get_json())
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -507,7 +508,7 @@ class TestCatalogAPI:
             }
         )
         assert response.status_code == 400
-        assert 'exceed' in response.get_json()['error']
+        assert 'exceed' in get_error_message(response.get_json())
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -523,7 +524,7 @@ class TestCatalogAPI:
             json={'query': 'test', 'threshold': 1.5}
         )
         assert response.status_code == 400
-        assert 'threshold' in response.get_json()['error']
+        assert 'threshold' in get_error_message(response.get_json())
 
         # Threshold < 0
         response = client.post(
@@ -547,7 +548,7 @@ class TestCatalogAPI:
             json={'query': 'test', 'limit': 500}
         )
         assert response.status_code == 400
-        assert 'limit' in response.get_json()['error']
+        assert 'limit' in get_error_message(response.get_json())
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -561,4 +562,4 @@ class TestCatalogAPI:
             headers={'Authorization': 'Bearer test-token'}
         )
         assert response.status_code == 400
-        assert 'Invalid' in response.get_json()['error']
+        assert 'Invalid' in get_error_message(response.get_json())

@@ -3,6 +3,7 @@ from typing import List, Dict, Optional
 from app.extensions import get_supabase_admin
 from app.services.embedding_service import encode_text, encode_catalog_item
 from app.services.audit_service import log_event
+from app.middleware.error_responses import NotFoundError, DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +118,7 @@ def get_item(item_id: str) -> Dict:
         .execute()
 
     if not response.data:
-        raise Exception(f"Catalog item not found: {item_id}")
+        raise NotFoundError("Catalog item", item_id)
 
     return response.data
 
@@ -176,7 +177,7 @@ def create_item(
     item_response = supabase_admin.table('catalog_items').insert(item_data).execute()
 
     if not item_response.data:
-        raise Exception("Failed to create catalog item")
+        raise DatabaseError("Failed to create catalog item")
 
     item = item_response.data[0]
     item_id = item['id']
@@ -189,14 +190,14 @@ def create_item(
         }).execute()
 
         if not embedding_response.data:
-            raise Exception("Failed to create embedding")
+            raise DatabaseError("Failed to create embedding")
 
     except Exception as e:
         try:
             supabase_admin.table('catalog_items').delete().eq('id', item_id).execute()
         except Exception as delete_error:
             logger.error(f"Failed to rollback item {item_id}: {delete_error}")
-        raise Exception(f"Item creation failed: {str(e)}")
+        raise DatabaseError(f"Item creation failed: {str(e)}")
 
     log_event(
         org_id=org_id,
@@ -219,7 +220,7 @@ def update_item(item_id: str, updates: Dict, updated_by: str = None) -> Dict:
         .execute()
 
     if not response.data:
-        raise Exception("Failed to update catalog item")
+        raise DatabaseError("Failed to update catalog item")
 
     updated_item = response.data[0]
 

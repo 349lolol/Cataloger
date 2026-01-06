@@ -88,7 +88,8 @@ class TestCatalogClient:
                 "description": "Test",
                 "category": "Test",
                 "metadata": {},
-                "justification": "Needed for testing"
+                "justification": "Needed for testing",
+                "use_ai_enrichment": True
             }
         )
         assert "proposal" in result

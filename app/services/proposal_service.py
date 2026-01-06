@@ -3,6 +3,7 @@ from typing import List, Dict, Optional
 from app.extensions import get_supabase_admin
 from app.services.audit_service import log_event
 from app.services.catalog_service import create_item, update_item
+from app.middleware.error_responses import NotFoundError, BadRequestError, ForbiddenError, ConflictError, DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,7 @@ def create_proposal(
     request_id: Optional[str] = None
 ) -> Dict:
     if proposal_type not in VALID_PROPOSAL_TYPES:
-        raise ValueError(f"Invalid proposal type. Must be one of: {', '.join(VALID_PROPOSAL_TYPES)}")
+        raise BadRequestError(f"Invalid proposal type. Must be one of: {', '.join(VALID_PROPOSAL_TYPES)}")
 
     supabase = get_supabase_admin()
     proposal_data = {
@@ -62,7 +63,7 @@ def create_proposal(
     response = supabase.table('proposals').insert(proposal_data).execute()
 
     if not response.data:
-        raise Exception("Failed to create proposal")
+        raise DatabaseError("Failed to create proposal")
 
     proposal = response.data[0]
 
@@ -87,7 +88,7 @@ def get_proposal(proposal_id: str) -> Dict:
         .execute()
 
     if not response.data:
-        raise Exception(f"Proposal not found: {proposal_id}")
+        raise NotFoundError("Proposal", proposal_id)
 
     return response.data
 
@@ -116,10 +117,10 @@ def approve_proposal(
     proposal = get_proposal(proposal_id)
 
     if org_id and proposal['org_id'] != org_id:
-        raise PermissionError("Cannot approve proposal from different organization")
+        raise ForbiddenError("Cannot approve proposal from different organization")
 
     if proposal['status'] != 'pending':
-        raise Exception("Only pending proposals can be approved")
+        raise ConflictError("Only pending proposals can be approved")
 
     supabase = get_supabase_admin()
     response = supabase.table('proposals') \
@@ -134,7 +135,7 @@ def approve_proposal(
         .execute()
 
     if not response.data:
-        raise Exception("Failed to approve proposal - may have been already processed")
+        raise ConflictError("Failed to approve proposal - may have been already processed")
 
     try:
         if proposal['proposal_type'] == 'ADD_ITEM':
@@ -149,7 +150,7 @@ def approve_proposal(
             .update({'status': 'pending', 'reviewed_by': None, 'review_notes': None}) \
             .eq('id', proposal_id) \
             .execute()
-        raise Exception(f"Merge failed: {str(e)}")
+        raise DatabaseError(f"Merge failed: {str(e)}")
 
     supabase.table('proposals') \
         .update({'status': 'merged', 'merged_at': 'now()'}) \
@@ -178,10 +179,10 @@ def reject_proposal(
     proposal = get_proposal(proposal_id)
 
     if org_id and proposal['org_id'] != org_id:
-        raise PermissionError("Cannot reject proposal from different organization")
+        raise ForbiddenError("Cannot reject proposal from different organization")
 
     if proposal['status'] != 'pending':
-        raise Exception("Only pending proposals can be rejected")
+        raise ConflictError("Only pending proposals can be rejected")
 
     supabase = get_supabase_admin()
     response = supabase.table('proposals') \
@@ -196,7 +197,7 @@ def reject_proposal(
         .execute()
 
     if not response.data:
-        raise Exception("Failed to reject proposal - may have been already processed")
+        raise ConflictError("Failed to reject proposal - may have been already processed")
 
     log_event(
         org_id=proposal['org_id'],

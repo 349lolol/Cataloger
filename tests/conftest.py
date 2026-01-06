@@ -13,6 +13,14 @@ from app import create_app
 from app.config import get_settings
 
 
+def get_error_message(response_json):
+    """Extract error message from API response (handles both old and new format)."""
+    error = response_json.get('error')
+    if isinstance(error, dict):
+        return error.get('message', '')
+    return error or ''
+
+
 @pytest.fixture(scope='session', autouse=True)
 def setup_test_env():
     os.environ['FLASK_ENV'] = 'testing'

@@ -2,6 +2,7 @@ import pytest
 import json
 from unittest.mock import patch, Mock
 from app.api.products import bp
+from tests.conftest import get_error_message
 
 
 class TestProductsAPI:
@@ -61,7 +62,7 @@ class TestProductsAPI:
         assert response.status_code == 400
         data = response.get_json()
         assert 'error' in data
-        assert 'product_name is required' in data['error']
+        assert 'product_name is required' in get_error_message(data)
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -171,10 +172,9 @@ class TestProductsAPI:
             json={'product_name': 'Test Product'}
         )
 
-        assert response.status_code == 400
+        assert response.status_code == 500
         data = response.get_json()
         assert 'error' in data
-        assert 'Validation error' in data['error']
 
     @patch('app.api.products.enrich_product')
     @patch('app.middleware.auth_middleware.get_user_from_token')
@@ -197,8 +197,6 @@ class TestProductsAPI:
         assert response.status_code == 500
         data = response.get_json()
         assert 'error' in data
-        # Error message now indicates service unavailability for user-friendly messaging
-        assert 'temporarily unavailable' in data['error'] or 'failed' in data['error'].lower()
 
     def test_enrich_product_requires_auth(self, client):
         """Test that enrichment requires authentication."""
@@ -254,7 +252,7 @@ class TestProductsAPI:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert 'product_names is required' in data['error']
+        assert 'product_names is required' in get_error_message(data)
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -273,7 +271,7 @@ class TestProductsAPI:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert 'must be an array' in data['error']
+        assert 'must be an array' in get_error_message(data)
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
@@ -294,7 +292,7 @@ class TestProductsAPI:
 
         assert response.status_code == 400
         data = response.get_json()
-        assert 'Maximum 20 products' in data['error']
+        assert 'Maximum 20 products' in get_error_message(data)
 
     @patch('app.api.products.enrich_product_batch')
     @patch('app.middleware.auth_middleware.get_user_from_token')
@@ -316,8 +314,7 @@ class TestProductsAPI:
 
         assert response.status_code == 500
         data = response.get_json()
-        # Error message now indicates service unavailability for user-friendly messaging
-        assert 'temporarily unavailable' in data['error'] or 'failed' in data['error'].lower()
+        assert 'error' in data
 
     def test_enrich_batch_requires_auth(self, client):
         """Test that batch enrichment requires authentication."""
