@@ -121,6 +121,16 @@ EMBEDDING_MODEL=text-embedding-004
 EMBEDDING_DIMENSION=768
 ```
 
+## Database Migrations
+
+Run in order:
+1. `00001_initial_schema.sql`
+2. `00002_rls_policies.sql`
+3. `00003_pgvector_setup.sql`
+4. `00004_add_product_fields.sql`
+5. `00005_fix_proposal_rls.sql`
+6. `00006_update_embedding_dimension.sql`
+
 ## Running
 
 ```bash
