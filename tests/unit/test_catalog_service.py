@@ -95,17 +95,21 @@ class TestCatalogService:
         assert len(result) == 1
         assert result[0]['status'] == 'active'
 
-    @patch('app.services.catalog_service.get_supabase_admin')
+    @patch('app.services.catalog_service._get_client')
     @patch('app.services.catalog_service.encode_catalog_item')
-    def test_create_item_generates_embedding(self, mock_encode, mock_supabase_admin):
-        """Test create_item generates and stores embedding."""
+    @patch('app.services.catalog_service.log_event')
+    def test_create_item_generates_embedding(self, mock_log, mock_encode, mock_get_client):
+        """Test create_item generates embedding and calls RPC."""
         # Setup mocks
-        mock_encode.return_value = [0.1] * 384
+        mock_encode.return_value = [0.1] * 768
 
-        # Mock catalog item creation
-        mock_item_execute = Mock()
-        mock_item_execute.data = [{'id': 'item-123', 'name': 'Test Item'}]
-        mock_supabase_admin.return_value.table.return_value.insert.return_value.execute.return_value = mock_item_execute
+        # Mock RPC response
+        mock_response = Mock()
+        mock_response.data = {'id': 'item-123', 'name': 'Test Item', 'org_id': 'org-123'}
+
+        mock_client = Mock()
+        mock_client.rpc.return_value.execute.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         # Call function
         result = catalog_service.create_item(
@@ -118,7 +122,25 @@ class TestCatalogService:
         )
 
         # Assertions
-        mock_encode.assert_called_once()
+        mock_encode.assert_called_once_with("Test Item", "Test description", "Test")
+        mock_client.rpc.assert_called_once_with(
+            'create_catalog_item_with_embedding',
+            {
+                'p_org_id': 'org-123',
+                'p_name': 'Test Item',
+                'p_description': 'Test description',
+                'p_category': 'Test',
+                'p_created_by': 'user-123',
+                'p_status': 'active',
+                'p_price': None,
+                'p_pricing_type': None,
+                'p_product_url': None,
+                'p_vendor': None,
+                'p_sku': None,
+                'p_metadata': {},
+                'p_embedding': [0.1] * 768
+            }
+        )
         assert result['id'] == 'item-123'
         assert result['name'] == 'Test Item'
 
@@ -193,16 +215,17 @@ class TestCatalogService:
         assert result["items_without_embeddings"] == 1
         assert result["repaired"] == 1
 
-    @patch('app.services.catalog_service.get_supabase_admin')
+    @patch('app.services.catalog_service._get_client')
     @patch('app.services.catalog_service.encode_catalog_item')
     @patch('app.services.catalog_service.log_event')
-    def test_create_item_with_all_fields(self, mock_log, mock_encode, mock_supabase_admin):
+    def test_create_item_with_all_fields(self, mock_log, mock_encode, mock_get_client):
         """Test create_item with all optional fields."""
-        mock_encode.return_value = [0.1] * 384
+        mock_encode.return_value = [0.1] * 768
 
         item_data = {
             'id': 'item-123',
             'name': 'Test Product',
+            'org_id': 'org-123',
             'price': 99.99,
             'pricing_type': 'one_time',
             'vendor': 'TestVendor',
@@ -210,18 +233,12 @@ class TestCatalogService:
             'product_url': 'https://example.com'
         }
 
-        mock_item_execute = Mock()
-        mock_item_execute.data = [item_data]
+        mock_response = Mock()
+        mock_response.data = item_data
 
-        mock_embed_execute = Mock()
-        mock_embed_execute.data = [{'catalog_item_id': 'item-123'}]
-
-        mock_admin = mock_supabase_admin.return_value
-        mock_table = Mock()
-        mock_insert = Mock()
-        mock_insert.execute.side_effect = [mock_item_execute, mock_embed_execute]
-        mock_table.insert.return_value = mock_insert
-        mock_admin.table.return_value = mock_table
+        mock_client = Mock()
+        mock_client.rpc.return_value.execute.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         result = catalog_service.create_item(
             org_id="org-123",
@@ -238,36 +255,54 @@ class TestCatalogService:
         )
 
         assert result['id'] == 'item-123'
+        mock_client.rpc.assert_called_once_with(
+            'create_catalog_item_with_embedding',
+            {
+                'p_org_id': 'org-123',
+                'p_name': 'Test Product',
+                'p_description': 'Test description',
+                'p_category': 'Electronics',
+                'p_created_by': 'user-123',
+                'p_status': 'active',
+                'p_price': 99.99,
+                'p_pricing_type': 'one_time',
+                'p_product_url': 'https://example.com',
+                'p_vendor': 'TestVendor',
+                'p_sku': 'TEST-123',
+                'p_metadata': {"key": "value"},
+                'p_embedding': [0.1] * 768
+            }
+        )
         mock_log.assert_called_once()
 
-    @patch('app.services.catalog_service.get_supabase_admin')
+    @patch('app.services.catalog_service._get_client')
     @patch('app.services.catalog_service.encode_catalog_item')
-    def test_create_item_embedding_fails_rollback(self, mock_encode, mock_supabase_admin):
-        """Test create_item rolls back when embedding fails."""
+    def test_create_item_embedding_fails(self, mock_encode, mock_get_client):
+        """Test create_item raises error when embedding generation fails."""
         mock_encode.side_effect = Exception("Embedding failed")
 
-        mock_item_execute = Mock()
-        mock_item_execute.data = [{'id': 'item-123', 'name': 'Test Item'}]
+        with pytest.raises(Exception, match="Embedding failed"):
+            catalog_service.create_item(
+                org_id="org-123",
+                name="Test Item",
+                description="Test description",
+                category="Test",
+                created_by="user-123"
+            )
 
-        mock_delete_execute = Mock()
-        mock_delete_execute.data = [{'id': 'item-123'}]
+    @patch('app.services.catalog_service._get_client')
+    @patch('app.services.catalog_service.encode_catalog_item')
+    def test_create_item_rpc_fails(self, mock_encode, mock_get_client):
+        """Test create_item raises error when RPC fails (atomic rollback)."""
+        mock_encode.return_value = [0.1] * 768
 
-        mock_admin = mock_supabase_admin.return_value
-        mock_table = Mock()
+        # Mock RPC failure (empty data means failure)
+        mock_response = Mock()
+        mock_response.data = None
 
-        # Mock insert
-        mock_insert = Mock()
-        mock_insert.execute.return_value = mock_item_execute
-        mock_table.insert.return_value = mock_insert
-
-        # Mock delete chain
-        mock_delete = Mock()
-        mock_eq = Mock()
-        mock_eq.execute.return_value = mock_delete_execute
-        mock_delete.eq.return_value = mock_eq
-        mock_table.delete.return_value = mock_delete
-
-        mock_admin.table.return_value = mock_table
+        mock_client = Mock()
+        mock_client.rpc.return_value.execute.return_value = mock_response
+        mock_get_client.return_value = mock_client
 
         with pytest.raises(Exception, match="Database temporarily unavailable"):
             catalog_service.create_item(

@@ -159,55 +159,33 @@ def create_item(
     metadata: Optional[Dict] = None,
     user_token: Optional[str] = None
 ) -> Dict:
+    """Create catalog item with embedding atomically via stored procedure."""
     supabase = _get_client(user_token)
-    supabase_admin = get_supabase_admin()  # For embeddings (no user RLS policy)
 
-    item_data = {
-        'org_id': org_id,
-        'name': name,
-        'description': description,
-        'category': category,
-        'created_by': created_by,
-        'status': 'active'
-    }
+    # Generate embedding
+    embedding = encode_catalog_item(name, description, category)
 
-    if price is not None:
-        item_data['price'] = price
-    if pricing_type:
-        item_data['pricing_type'] = pricing_type
-    if product_url:
-        item_data['product_url'] = product_url
-    if vendor:
-        item_data['vendor'] = vendor
-    if sku:
-        item_data['sku'] = sku
-    if metadata:
-        item_data['metadata'] = metadata
+    # Call stored procedure for atomic insert of item + embedding
+    response = supabase.rpc('create_catalog_item_with_embedding', {
+        'p_org_id': org_id,
+        'p_name': name,
+        'p_description': description,
+        'p_category': category,
+        'p_created_by': created_by,
+        'p_status': 'active',
+        'p_price': price,
+        'p_pricing_type': pricing_type,
+        'p_product_url': product_url,
+        'p_vendor': vendor,
+        'p_sku': sku,
+        'p_metadata': metadata or {},
+        'p_embedding': embedding
+    }).execute()
 
-    item_response = supabase.table('catalog_items').insert(item_data).execute()
-
-    if not item_response.data:
+    if not response.data:
         raise DatabaseError("Failed to create catalog item")
 
-    item = item_response.data[0]
-    item_id = item['id']
-
-    try:
-        embedding = encode_catalog_item(name, description, category)
-        embedding_response = supabase_admin.table('catalog_item_embeddings').insert({
-            'catalog_item_id': item_id,
-            'embedding': embedding
-        }).execute()
-
-        if not embedding_response.data:
-            raise DatabaseError("Failed to create embedding")
-
-    except Exception as e:
-        try:
-            supabase_admin.table('catalog_items').delete().eq('id', item_id).execute()
-        except Exception as delete_error:
-            logger.error(f"Failed to rollback item {item_id}: {delete_error}")
-        raise DatabaseError(f"Item creation failed: {str(e)}")
+    item = response.data
 
     log_event(
         org_id=org_id,
