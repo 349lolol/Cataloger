@@ -22,15 +22,16 @@ class TestMCPServerStructure:
         assert 'class APIError' in content, "APIError class should be defined"
         assert 'def __init__(self, status_code' in content, "APIError should have status_code"
 
-    def test_server_has_authenticate_function(self):
-        """Test that authenticate function is defined."""
+    def test_server_has_login_function(self):
+        """Test that login tool and _do_login function are defined."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
         with open(server_path, 'r') as f:
             content = f.read()
 
-        assert 'def authenticate(' in content, "authenticate function should be defined"
+        assert 'def _do_login(' in content, "_do_login function should be defined"
+        assert 'def login(' in content, "login tool should be defined"
 
     def test_server_has_api_call_function(self):
         """Test that _api_call function is defined."""

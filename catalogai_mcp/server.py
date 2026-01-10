@@ -2,7 +2,11 @@ import os
 import sys
 import httpx
 from typing import Optional, Dict, Any, List
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
+
+# Load .env from project root
+load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -17,47 +21,48 @@ _auth_state = {
 }
 
 
-def authenticate():
+def _do_login(email: str, password: str) -> Dict[str, Any]:
+    """Authenticate with Supabase and store JWT."""
     supabase_url = os.getenv('SUPABASE_URL')
-    user_email = os.getenv('USER_EMAIL')
-    user_password = os.getenv('USER_PASSWORD')
-    api_url = os.getenv('API_URL', 'http://localhost:5000')
+    supabase_key = os.getenv('SUPABASE_KEY')
+    api_url = os.getenv('API_URL', 'http://localhost:5001')
 
-    if not all([supabase_url, user_email, user_password]):
-        raise ValueError("Missing: SUPABASE_URL, USER_EMAIL, USER_PASSWORD")
+    if not supabase_url or not supabase_key:
+        raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY in environment")
 
     auth_url = f"{supabase_url}/auth/v1/token?grant_type=password"
 
-    try:
-        response = httpx.post(
-            auth_url,
-            json={"email": user_email, "password": user_password},
-            headers={"apikey": os.getenv('SUPABASE_KEY')},
-            timeout=10.0
-        )
-        response.raise_for_status()
+    response = httpx.post(
+        auth_url,
+        json={"email": email, "password": password},
+        headers={"apikey": supabase_key},
+        timeout=10.0
+    )
+    response.raise_for_status()
 
-        data = response.json()
-        access_token = data.get('access_token')
-        user = data.get('user', {})
+    data = response.json()
+    access_token = data.get('access_token')
+    user = data.get('user', {})
 
-        if not access_token:
-            raise ValueError("No access token in response")
+    if not access_token:
+        raise ValueError("No access token in response")
 
-        _auth_state['access_token'] = access_token
-        _auth_state['user_id'] = user.get('id')
-        _auth_state['api_url'] = api_url
+    _auth_state['access_token'] = access_token
+    _auth_state['user_id'] = user.get('id')
+    _auth_state['api_url'] = api_url
 
-        user_info = _api_call('GET', '/api/auth/verify')
-        if user_info:
-            _auth_state['org_id'] = user_info.get('org_id')
-            _auth_state['user_role'] = user_info.get('role')
+    # Get org/role info from API
+    user_info = _api_call('GET', '/api/auth/verify')
+    if user_info:
+        _auth_state['org_id'] = user_info.get('org_id')
+        _auth_state['user_role'] = user_info.get('role')
 
-        print(f"Authenticated as {user_email}", file=sys.stderr)
-        print(f"  Org: {_auth_state['org_id']}, Role: {_auth_state['user_role']}", file=sys.stderr)
-
-    except Exception as e:
-        raise RuntimeError(f"Authentication failed: {str(e)}")
+    return {
+        "status": "authenticated",
+        "user_id": _auth_state['user_id'],
+        "org_id": _auth_state['org_id'],
+        "role": _auth_state['user_role']
+    }
 
 
 class APIError(Exception):
@@ -93,6 +98,32 @@ def _api_call(method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         raise Exception("Request timed out")
     except httpx.ConnectError:
         raise Exception("Connection failed")
+
+
+# Auth Tools
+
+@mcp.tool()
+def login(email: str, password: str) -> Dict[str, Any]:
+    """Login with email/password. Must be called before using other tools."""
+    try:
+        return _do_login(email, password)
+    except httpx.HTTPStatusError as e:
+        return {"error": f"Authentication failed: {e.response.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@mcp.tool()
+def whoami() -> Dict[str, Any]:
+    """Check current authentication status."""
+    if not _auth_state['access_token']:
+        return {"authenticated": False, "message": "Not logged in. Call login(email, password) first."}
+    return {
+        "authenticated": True,
+        "user_id": _auth_state['user_id'],
+        "org_id": _auth_state['org_id'],
+        "role": _auth_state['user_role']
+    }
 
 
 # Catalog Tools
@@ -318,14 +349,9 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
 
 
 def main():
-    try:
-        print("Authenticating MCP server...", file=sys.stderr)
-        authenticate()
-        print("MCP server ready\n", file=sys.stderr)
-        mcp.run(transport="stdio")
-    except Exception as e:
-        print(f"Failed to start: {str(e)}", file=sys.stderr)
-        sys.exit(1)
+    print("CatalogAI MCP server starting...", file=sys.stderr)
+    print("Use login(email, password) to authenticate.\n", file=sys.stderr)
+    mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":
