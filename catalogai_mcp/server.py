@@ -264,31 +264,39 @@ def check_embeddings_health() -> Dict[str, Any]:
     return _api_call('POST', '/api/admin/embeddings/check')
 
 
+# Skills Tool
+
+@mcp.tool()
+def list_skills() -> str:
+    """List available skills for code execution."""
+    skills_readme = os.path.join(os.path.dirname(__file__), 'skills', 'README.md')
+    with open(skills_readme) as f:
+        return f.read()
+
+
 # Code Execution Tool
 
 @mcp.tool()
 def execute_code(code: str, description: str = "Execute Python code") -> str:
     """
-    Execute Python code in Docker sandbox with catalogai_sdk.
+    Execute Python code in Docker sandbox.
 
-    The SDK is pre-authenticated:
+    For multi-step operations, use the skills module:
     ```python
-    from catalogai_sdk import CatalogAI
-    client = CatalogAI()
+    from skills import catalog, reqs, proposals
+    import json
 
-    # Search, list, create items
-    results = client.catalog.search("laptop")
-    items = client.catalog.list()
-    client.catalog.request_new_item(name="MacBook Pro", justification="Need for team")
-
-    # Manage requests
-    requests = client.requests.list(status="pending")
-    client.requests.review(request_id, status="approved")
-
-    # Manage proposals
-    proposals = client.proposals.list(status="pending")
-    client.proposals.approve(proposal_id)
+    # Example: find matches for pending requests
+    pending = reqs.list_all(status="pending")
+    result = []
+    for req in pending:
+        matches = catalog.search(req["search_query"], limit=3)
+        result.append({"request_id": req["id"], "matches": matches})
+    print(json.dumps(result))
     ```
+
+    Run `list_skills` tool first to see all available functions.
+    Output JSON only - no formatting, no emojis.
 
     Security: 512MB RAM, 50% CPU, 30s timeout, isolated network.
     """
