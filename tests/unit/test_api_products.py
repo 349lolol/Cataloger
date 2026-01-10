@@ -11,7 +11,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_product_success(self, mock_get_org, mock_get_user, mock_enrich, client):
-        """Test successful product enrichment."""
         # Mock auth
         mock_user = Mock()
         mock_user.id = 'test-user-id'
@@ -47,7 +46,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_product_missing_product_name(self, mock_get_org, mock_get_user, client):
-        """Test enrichment without product_name."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -67,7 +65,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_product_no_body(self, mock_get_org, mock_get_user, client):
-        """Test enrichment with no request body returns error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -88,7 +85,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_product_with_category(self, mock_get_org, mock_get_user, mock_enrich, client):
-        """Test enrichment with category hint."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -123,7 +119,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_product_with_context(self, mock_get_org, mock_get_user, mock_enrich, client):
-        """Test enrichment with additional context."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -158,7 +153,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_product_validation_error(self, mock_get_org, mock_get_user, mock_enrich, client):
-        """Test enrichment with validation error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -180,7 +174,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_product_service_error(self, mock_get_org, mock_get_user, mock_enrich, client):
-        """Test enrichment with service error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -199,7 +192,6 @@ class TestProductsAPI:
         assert 'error' in data
 
     def test_enrich_product_requires_auth(self, client):
-        """Test that enrichment requires authentication."""
         response = client.post(
             '/api/products/enrich',
             json={'product_name': 'Test Product'}
@@ -211,7 +203,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_batch_success(self, mock_get_org, mock_get_user, mock_batch, client):
-        """Test successful batch enrichment."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -238,7 +229,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_batch_missing_product_names(self, mock_get_org, mock_get_user, client):
-        """Test batch enrichment without product_names."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -257,7 +247,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_batch_invalid_type(self, mock_get_org, mock_get_user, client):
-        """Test batch enrichment with non-array product_names."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -276,7 +265,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_batch_exceeds_limit(self, mock_get_org, mock_get_user, client):
-        """Test batch enrichment exceeding maximum batch size."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -298,7 +286,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_batch_service_error(self, mock_get_org, mock_get_user, mock_batch, client):
-        """Test batch enrichment with service error."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -317,7 +304,6 @@ class TestProductsAPI:
         assert 'error' in data
 
     def test_enrich_batch_requires_auth(self, client):
-        """Test that batch enrichment requires authentication."""
         response = client.post(
             '/api/products/enrich-batch',
             json={'product_names': ['Product 1']}
@@ -329,7 +315,6 @@ class TestProductsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_enrich_batch_empty_array(self, mock_get_org, mock_get_user, mock_batch, client):
-        """Test batch enrichment with empty array."""
         mock_user = Mock()
         mock_user.id = 'test-user-id'
         mock_get_user.return_value = (mock_user, 'test-token')

@@ -8,7 +8,6 @@ class TestRequestService:
     @patch('app.services.request_service.get_supabase_admin')
     @patch('app.services.request_service.log_event')
     def test_create_request_success(self, mock_log_event, mock_supabase_getter):
-        """Test creating a new request."""
         # Setup mocks
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
@@ -53,7 +52,6 @@ class TestRequestService:
 
     @patch('app.services.request_service.get_supabase_admin')
     def test_get_request_by_id(self, mock_supabase_getter):
-        """Test retrieving request by ID."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
@@ -76,7 +74,6 @@ class TestRequestService:
 
     @patch('app.services.request_service.get_supabase_admin')
     def test_list_requests_with_filters(self, mock_supabase_getter):
-        """Test listing requests with status filter."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
@@ -107,7 +104,6 @@ class TestRequestService:
     @patch('app.services.request_service.get_supabase_admin')
     @patch('app.services.request_service.log_event')
     def test_review_request_approve(self, mock_log_event, mock_supabase_getter, mock_get_request):
-        """Test approving a request via review."""
         # Mock get_request to return a pending request
         mock_get_request.return_value = {
             "id": "request-123",
@@ -161,7 +157,6 @@ class TestRequestService:
     @patch('app.services.request_service.get_supabase_admin')
     @patch('app.services.request_service.log_event')
     def test_review_request_reject(self, mock_log_event, mock_supabase_getter, mock_get_request):
-        """Test rejecting a request via review."""
         # Mock get_request to return a pending request
         mock_get_request.return_value = {
             "id": "request-123",

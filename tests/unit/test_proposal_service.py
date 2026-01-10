@@ -8,7 +8,6 @@ class TestProposalService:
     @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.audit_service.log_event')
     def test_create_add_item_proposal(self, mock_audit, mock_supabase_getter):
-        """Test creating ADD_ITEM proposal."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
@@ -45,7 +44,6 @@ class TestProposalService:
     @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.audit_service.log_event')
     def test_create_replace_item_proposal(self, mock_audit, mock_supabase_getter):
-        """Test creating REPLACE_ITEM proposal."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
@@ -77,7 +75,6 @@ class TestProposalService:
 
     @patch('app.services.proposal_service.get_supabase_admin')
     def test_get_proposal_by_id(self, mock_supabase_getter):
-        """Test retrieving proposal by ID."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
@@ -110,7 +107,6 @@ class TestProposalService:
     @patch('app.services.proposal_service.encode_catalog_item')
     @patch('app.services.audit_service.log_event')
     def test_approve_add_item_proposal(self, mock_audit, mock_encode, mock_get_client, mock_get_proposal):
-        """Test approving ADD_ITEM proposal via atomic RPC."""
         mock_encode.return_value = [0.1] * 768
 
         mock_get_proposal.side_effect = [
@@ -163,7 +159,6 @@ class TestProposalService:
     @patch('app.services.proposal_service.get_supabase_admin')
     @patch('app.services.audit_service.log_event')
     def test_reject_proposal(self, mock_audit, mock_supabase_getter, mock_get_proposal):
-        """Test rejecting a proposal."""
         # Mock get_proposal to return pending proposal
         mock_get_proposal.return_value = {
             "id": "proposal-123",
@@ -205,7 +200,6 @@ class TestProposalService:
 
     @patch('app.services.proposal_service.get_supabase_admin')
     def test_list_proposals_with_filters(self, mock_supabase_getter):
-        """Test listing proposals with status filter."""
         # Setup mock
         mock_supabase = Mock()
         mock_supabase_getter.return_value = mock_supabase
@@ -236,7 +230,6 @@ class TestProposalService:
     @patch('app.services.proposal_service._get_client')
     @patch('app.services.audit_service.log_event')
     def test_approve_deprecate_item_proposal(self, mock_audit, mock_get_client, mock_get_proposal):
-        """Test approving DEPRECATE_ITEM proposal via atomic RPC."""
         mock_get_proposal.side_effect = [
             {
                 "id": "proposal-125",

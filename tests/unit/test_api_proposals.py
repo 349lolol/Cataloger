@@ -25,7 +25,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_create_add_item_proposal(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test creating ADD_ITEM proposal."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
@@ -61,7 +60,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_create_replace_item_proposal(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test creating REPLACE_ITEM proposal."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
@@ -96,7 +94,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_proposal_missing_type(self, mock_org_role, mock_get_user, client):
-        """Test proposal creation fails without proposal_type."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
@@ -122,7 +119,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_list_proposals(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test listing proposals."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
@@ -149,7 +145,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_list_proposals_with_status_filter(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test listing proposals with status filter."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"
@@ -177,7 +172,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_get_proposal_by_id(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test getting a specific proposal."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = TEST_USER_UUID
@@ -206,7 +200,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_approve_proposal_as_admin(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test approving a proposal as admin."""
         admin_uuid = 'dddddddd-dddd-dddd-dddd-dddddddddddd'
         # Setup mocks
         user_mock = Mock()
@@ -237,7 +230,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_reject_proposal_as_reviewer(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test rejecting a proposal as reviewer."""
         reviewer_uuid = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee'
         # Setup mocks
         user_mock = Mock()
@@ -268,7 +260,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_approve_proposal_requires_admin_or_reviewer(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test that only admin/reviewer can approve proposals."""
         # Setup mocks - regular requester role (should be forbidden)
         user_mock = Mock()
         user_mock.id = TEST_USER_UUID
@@ -290,7 +281,6 @@ class TestProposalsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.proposals.proposal_service')
     def test_create_deprecate_item_proposal(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test creating DEPRECATE_ITEM proposal."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "user-123"

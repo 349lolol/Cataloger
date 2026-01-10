@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 def _get_client(user_token: Optional[str] = None):
-    """Get appropriate Supabase client based on whether user token is provided."""
     if user_token:
         return get_supabase_user_client(user_token)
     return get_supabase_admin()
@@ -159,13 +158,9 @@ def create_item(
     metadata: Optional[Dict] = None,
     user_token: Optional[str] = None
 ) -> Dict:
-    """Create catalog item with embedding atomically via stored procedure."""
     supabase = _get_client(user_token)
-
-    # Generate embedding
     embedding = encode_catalog_item(name, description, category)
 
-    # Call stored procedure for atomic insert of item + embedding
     response = supabase.rpc('create_catalog_item_with_embedding', {
         'p_org_id': org_id,
         'p_name': name,

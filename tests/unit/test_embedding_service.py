@@ -7,7 +7,6 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_text_returns_list(self, mock_genai):
-        """Test that encode_text returns a list."""
         # Mock the Gemini API response
         mock_genai.embed_content.return_value = {
             'embedding': [0.1] * 768
@@ -19,7 +18,6 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_text_values_are_floats(self, mock_genai):
-        """Test that embedding values are floats."""
         mock_genai.embed_content.return_value = {
             'embedding': [0.5] * 768
         }
@@ -29,7 +27,6 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_batch_returns_list_of_lists(self, mock_genai):
-        """Test that encode_batch returns list of embeddings."""
         # Return different embeddings for different calls
         mock_genai.embed_content.side_effect = [
             {'embedding': [0.1] * 768},
@@ -45,14 +42,12 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_batch_empty_list(self, mock_genai):
-        """Test encode_batch with empty list."""
         result = encode_batch([])
         assert isinstance(result, list)
         assert len(result) == 0
 
     @patch('app.services.embedding_service.genai')
     def test_encode_catalog_item_with_all_fields(self, mock_genai):
-        """Test encoding catalog item with all fields."""
         mock_genai.embed_content.return_value = {
             'embedding': [0.1] * 768
         }
@@ -72,7 +67,6 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_catalog_item_with_name_only(self, mock_genai):
-        """Test encoding catalog item with only name."""
         mock_genai.embed_content.return_value = {
             'embedding': [0.1] * 768
         }
@@ -83,7 +77,6 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_catalog_item_different_inputs_different_outputs(self, mock_genai):
-        """Test that different inputs produce different embeddings."""
         # Return different embeddings for different calls
         mock_genai.embed_content.side_effect = [
             {'embedding': [0.1] * 768},
@@ -96,7 +89,6 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_catalog_item_similar_inputs_similar_outputs(self, mock_genai):
-        """Test that similar inputs produce similar embeddings."""
         # Create similar embeddings (high cosine similarity)
         base_vec = [0.5] * 768
         similar_vec = [0.55] * 768  # Slightly different
@@ -122,7 +114,6 @@ class TestEmbeddingService:
 
     @patch('app.services.embedding_service.genai')
     def test_encode_text_calls_gemini_correctly(self, mock_genai):
-        """Test that encode_text calls Gemini API with correct parameters."""
         mock_genai.embed_content.return_value = {
             'embedding': [0.1] * 768
         }

@@ -8,7 +8,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service.get_supabase_admin')
     @patch('app.services.catalog_service.encode_text')
     def test_search_items_calls_rpc(self, mock_encode, mock_supabase):
-        """Test that search_items calls Supabase RPC."""
         # Setup mocks
         mock_encode.return_value = [0.1] * 384
         mock_rpc = Mock()
@@ -32,7 +31,6 @@ class TestCatalogService:
 
     @patch('app.services.catalog_service.get_supabase_admin')
     def test_get_item_returns_item(self, mock_supabase):
-        """Test get_item returns item data."""
         # Setup mock
         mock_single = Mock()
         mock_execute = Mock()
@@ -55,7 +53,6 @@ class TestCatalogService:
 
     @patch('app.services.catalog_service.get_supabase_admin')
     def test_get_item_raises_exception_when_not_found(self, mock_supabase):
-        """Test get_item raises exception when item not found."""
         # Setup mock to return None (item not found)
         mock_response = Mock()
         mock_response.data = None
@@ -74,7 +71,6 @@ class TestCatalogService:
 
     @patch('app.services.catalog_service.get_supabase_admin')
     def test_list_items_with_status_filter(self, mock_supabase):
-        """Test list_items with status filter."""
         # Setup mock
         mock_response = Mock()
         mock_response.data = [{'id': 'item-1', 'status': 'active'}]
@@ -99,7 +95,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service.encode_catalog_item')
     @patch('app.services.catalog_service.log_event')
     def test_create_item_generates_embedding(self, mock_log, mock_encode, mock_get_client):
-        """Test create_item generates embedding and calls RPC."""
         # Setup mocks
         mock_encode.return_value = [0.1] * 768
 
@@ -146,7 +141,6 @@ class TestCatalogService:
 
     @patch('app.services.catalog_service.get_supabase_admin')
     def test_check_and_repair_embeddings_no_items(self, mock_supabase_admin):
-        """Test check_and_repair_embeddings with no items."""
         mock_response = Mock()
         mock_response.data = []
 
@@ -165,7 +159,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service.get_supabase_admin')
     @patch('app.services.catalog_service.encode_catalog_item')
     def test_check_and_repair_embeddings_repairs_missing(self, mock_encode, mock_supabase_admin):
-        """Test check_and_repair_embeddings repairs missing embeddings."""
         mock_encode.return_value = [0.1] * 384
 
         # Mock items response
@@ -219,7 +212,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service.encode_catalog_item')
     @patch('app.services.catalog_service.log_event')
     def test_create_item_with_all_fields(self, mock_log, mock_encode, mock_get_client):
-        """Test create_item with all optional fields."""
         mock_encode.return_value = [0.1] * 768
 
         item_data = {
@@ -278,7 +270,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service._get_client')
     @patch('app.services.catalog_service.encode_catalog_item')
     def test_create_item_embedding_fails(self, mock_encode, mock_get_client):
-        """Test create_item raises error when embedding generation fails."""
         mock_encode.side_effect = Exception("Embedding failed")
 
         with pytest.raises(Exception, match="Embedding failed"):
@@ -293,7 +284,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service._get_client')
     @patch('app.services.catalog_service.encode_catalog_item')
     def test_create_item_rpc_fails(self, mock_encode, mock_get_client):
-        """Test create_item raises error when RPC fails (atomic rollback)."""
         mock_encode.return_value = [0.1] * 768
 
         # Mock RPC failure (empty data means failure)
@@ -317,7 +307,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service.encode_catalog_item')
     @patch('app.services.catalog_service.log_event')
     def test_update_item_regenerates_embedding(self, mock_log, mock_encode, mock_supabase_admin):
-        """Test update_item regenerates embedding when content changes."""
         mock_encode.return_value = [0.2] * 384
 
         updated_data = {
@@ -366,7 +355,6 @@ class TestCatalogService:
 
     @patch('app.services.catalog_service.get_supabase_admin')
     def test_update_item_without_content_change(self, mock_supabase_admin):
-        """Test update_item without content fields doesn't regenerate embedding."""
         updated_data = {
             'id': 'item-123',
             'price': 199.99,
@@ -392,7 +380,6 @@ class TestCatalogService:
 
     @patch('app.services.catalog_service.get_supabase_admin')
     def test_list_items_without_status_filter(self, mock_supabase):
-        """Test list_items without status filter."""
         mock_response = Mock()
         mock_response.data = [
             {'id': 'item-1', 'status': 'active'},
@@ -414,7 +401,6 @@ class TestCatalogService:
     @patch('app.services.catalog_service.get_supabase_admin')
     @patch('app.services.catalog_service.encode_text')
     def test_search_items_empty_results(self, mock_encode, mock_supabase):
-        """Test search_items returns empty list when no matches."""
         mock_encode.return_value = [0.1] * 384
 
         mock_execute = Mock()
@@ -431,7 +417,6 @@ class TestCatalogService:
 
     @patch('app.services.catalog_service.get_supabase_admin')
     def test_update_item_fails(self, mock_supabase_admin):
-        """Test update_item raises exception when update fails."""
         mock_response = Mock()
         mock_response.data = None
 

@@ -5,7 +5,6 @@ from app.middleware.error_responses import NotFoundError, BadRequestError, Forbi
 
 
 def _get_client(user_token: Optional[str] = None):
-    """Get appropriate Supabase client based on whether user token is provided."""
     if user_token:
         return get_supabase_user_client(user_token)
     return get_supabase_admin()

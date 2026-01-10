@@ -13,7 +13,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_success(self, mock_supabase):
-        """Test successful token validation."""
         mock_user = Mock()
         mock_user.id = 'user-123'
         mock_user.email = 'test@example.com'
@@ -35,7 +34,6 @@ class TestAuthMiddleware:
         mock_auth.get_user.assert_called_once_with('valid-token')
 
     def test_get_user_from_token_no_header(self):
-        """Test token validation without Authorization header."""
         app = Flask(__name__)
         with app.test_request_context():
             user, token = get_user_from_token()
@@ -44,7 +42,6 @@ class TestAuthMiddleware:
         assert token is None
 
     def test_get_user_from_token_invalid_format(self):
-        """Test token validation with invalid Authorization format."""
         app = Flask(__name__)
 
         # Test missing Bearer prefix
@@ -67,7 +64,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_validation_error(self, mock_supabase):
-        """Test token validation when Supabase returns error."""
         mock_auth = Mock()
         mock_auth.get_user.side_effect = Exception("Invalid token")
         mock_supabase.return_value.auth = mock_auth
@@ -81,7 +77,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_no_user(self, mock_supabase):
-        """Test token validation when no user is returned."""
         mock_auth = Mock()
         mock_auth.get_user.return_value = None
         mock_supabase.return_value.auth = mock_auth
@@ -95,7 +90,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_supabase_admin')
     def test_get_user_org_and_role_success(self, mock_supabase):
-        """Test successful org and role retrieval."""
         mock_response = Mock()
         # Now returns a list since we use limit(1) instead of single()
         mock_response.data = [{'org_id': 'org-123', 'role': 'admin'}]
@@ -114,7 +108,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_supabase_admin')
     def test_get_user_org_and_role_not_found(self, mock_supabase):
-        """Test org retrieval when user has no org membership."""
         mock_response = Mock()
         mock_response.data = []  # Empty list instead of None
 
@@ -132,7 +125,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_supabase_admin')
     def test_get_user_org_and_role_error(self, mock_supabase):
-        """Test org retrieval when database error occurs."""
         mock_query = Mock()
         mock_query.select.side_effect = Exception("Database error")
         mock_supabase.return_value.table.return_value = mock_query
@@ -145,7 +137,6 @@ class TestAuthMiddleware:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_require_auth_success(self, mock_get_user, mock_get_org):
-        """Test require_auth decorator with valid auth."""
         mock_user = Mock()
         mock_user.id = 'user-123'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -166,7 +157,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_require_auth_no_token(self, mock_get_user):
-        """Test require_auth decorator without token."""
         mock_get_user.return_value = (None, None)
 
         app = Flask(__name__)
@@ -185,7 +175,6 @@ class TestAuthMiddleware:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_require_auth_no_org(self, mock_get_user, mock_get_org):
-        """Test require_auth when user has no org membership."""
         mock_user = Mock()
         mock_user.id = 'user-123'
         mock_get_user.return_value = (mock_user, 'test-token')
@@ -205,7 +194,6 @@ class TestAuthMiddleware:
         assert 'not a member of any organization' in data['error']
 
     def test_require_role_success(self):
-        """Test require_role decorator with correct role."""
         app = Flask(__name__)
 
         @require_role(['admin', 'reviewer'])
@@ -220,7 +208,6 @@ class TestAuthMiddleware:
         assert data['success'] is True
 
     def test_require_role_forbidden(self):
-        """Test require_role decorator with insufficient role."""
         app = Flask(__name__)
 
         @require_role(['admin'])
@@ -236,7 +223,6 @@ class TestAuthMiddleware:
         assert 'Requires role' in data['error']
 
     def test_require_role_no_user_role(self):
-        """Test require_role decorator without user role in context."""
         app = Flask(__name__)
 
         @require_role(['admin'])
@@ -251,7 +237,6 @@ class TestAuthMiddleware:
         assert 'Unauthorized' in data['error']
 
     def test_require_role_multiple_allowed(self):
-        """Test require_role with multiple allowed roles."""
         app = Flask(__name__)
 
         @require_role(['admin', 'reviewer', 'member'])
@@ -268,7 +253,6 @@ class TestAuthMiddleware:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_require_auth_sets_context_variables(self, mock_get_user, mock_get_org):
-        """Test that require_auth sets all context variables correctly."""
         mock_user = Mock()
         mock_user.id = 'user-123'
         mock_user.email = 'test@example.com'
@@ -299,7 +283,6 @@ class TestAuthMiddleware:
 
     @patch('app.middleware.auth_middleware.get_supabase_client')
     def test_get_user_from_token_case_insensitive_bearer(self, mock_supabase):
-        """Test that Bearer keyword is case insensitive."""
         mock_user = Mock()
         mock_user.id = 'user-123'
 

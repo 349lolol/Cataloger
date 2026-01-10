@@ -5,14 +5,12 @@ import os
 class TestMCPServerStructure:
 
     def test_server_file_exists(self):
-        """Test that server.py exists."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
         assert os.path.exists(server_path), "server.py should exist"
 
     def test_server_has_api_error_class(self):
-        """Test that APIError class is defined in server."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
@@ -23,7 +21,6 @@ class TestMCPServerStructure:
         assert 'def __init__(self, status_code' in content, "APIError should have status_code"
 
     def test_server_has_login_function(self):
-        """Test that login tool and _do_login function are defined."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
@@ -34,7 +31,6 @@ class TestMCPServerStructure:
         assert 'def login(' in content, "login tool should be defined"
 
     def test_server_has_api_call_function(self):
-        """Test that _api_call function is defined."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
@@ -44,7 +40,6 @@ class TestMCPServerStructure:
         assert 'def _api_call(' in content, "_api_call function should be defined"
 
     def test_server_defines_mcp_tools(self):
-        """Test that MCP tools are defined."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
@@ -68,7 +63,6 @@ class TestMCPServerStructure:
                 f"Tool {tool} should be defined"
 
     def test_server_uses_correct_api_endpoints(self):
-        """Test that server uses correct API endpoint paths."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
@@ -81,7 +75,6 @@ class TestMCPServerStructure:
         assert '/api/requests' in content, "Should use /api/requests endpoint"
 
     def test_server_raises_api_error_on_http_errors(self):
-        """Test that server raises APIError instead of returning error dict in _api_call."""
         server_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'server.py'
         )
@@ -109,14 +102,12 @@ class TestCodeExecutor:
     """Test code executor file structure."""
 
     def test_code_executor_exists(self):
-        """Test that code_executor.py exists."""
         executor_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'code_executor.py'
         )
         assert os.path.exists(executor_path), "code_executor.py should exist"
 
     def test_code_executor_has_proper_cleanup(self):
-        """Test that code executor has proper container cleanup."""
         executor_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'code_executor.py'
         )
@@ -129,7 +120,6 @@ class TestCodeExecutor:
         assert 'finally:' in content, "Should have finally block for cleanup"
 
     def test_code_executor_uses_specific_exceptions(self):
-        """Test that code executor uses specific exceptions, not bare except."""
         executor_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'code_executor.py'
         )
@@ -141,7 +131,6 @@ class TestCodeExecutor:
             "Should use specific exceptions, not bare except"
 
     def test_code_executor_has_execute_method(self):
-        """Test that CodeExecutor class has execute method."""
         executor_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'code_executor.py'
         )
@@ -156,21 +145,18 @@ class TestMCPPackageStructure:
     """Test MCP package structure."""
 
     def test_init_file_exists(self):
-        """Test that __init__.py exists."""
         init_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', '__init__.py'
         )
         assert os.path.exists(init_path), "__init__.py should exist"
 
     def test_sandbox_dockerfile_exists(self):
-        """Test that sandbox.Dockerfile exists."""
         dockerfile_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'sandbox.Dockerfile'
         )
         assert os.path.exists(dockerfile_path), "sandbox.Dockerfile should exist"
 
     def test_sandbox_dockerfile_has_security(self):
-        """Test that sandbox Dockerfile has security measures."""
         dockerfile_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'sandbox.Dockerfile'
         )
@@ -183,7 +169,6 @@ class TestMCPPackageStructure:
         assert 'USER' in content, "Should switch to non-root user"
 
     def test_test_setup_script_exists(self):
-        """Test that test_setup.py exists for MCP verification."""
         test_path = os.path.join(
             os.path.dirname(__file__), '..', '..', 'catalogai_mcp', 'test_setup.py'
         )

@@ -29,7 +29,6 @@ class TestRequestsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_create_request_success(self, mock_get_user, mock_get_org, mock_service, client):
-        """Test successful request creation."""
         # Setup auth mocks
         mock_user = Mock()
         mock_user.id = "user-123"
@@ -65,7 +64,6 @@ class TestRequestsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_list_requests(self, mock_get_user, mock_get_org, mock_service, client):
-        """Test listing requests."""
         # Setup auth mocks
         mock_user = Mock()
         mock_user.id = "user-123"
@@ -94,7 +92,6 @@ class TestRequestsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_get_request_by_id(self, mock_get_user, mock_get_org, mock_service, client):
-        """Test getting a specific request."""
         # Setup auth mocks
         mock_user = Mock()
         mock_user.id = TEST_USER_UUID
@@ -124,7 +121,6 @@ class TestRequestsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_review_request_approve(self, mock_get_user, mock_get_org, mock_service, client):
-        """Test approving a request via review endpoint."""
         # Setup auth mocks - reviewer role
         reviewer_uuid = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'
         mock_user = Mock()
@@ -159,7 +155,6 @@ class TestRequestsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_review_request_reject(self, mock_get_user, mock_get_org, mock_service, client):
-        """Test rejecting a request via review endpoint."""
         # Setup auth mocks - admin role
         admin_uuid = 'cccccccc-cccc-cccc-cccc-cccccccccccc'
         mock_user = Mock()
@@ -193,7 +188,6 @@ class TestRequestsAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_review_requires_reviewer_role(self, mock_get_user, mock_get_org, client):
-        """Test that review endpoint requires reviewer or admin role."""
         # Setup auth mocks - requester role (insufficient)
         mock_user = Mock()
         mock_user.id = TEST_USER_UUID
@@ -216,7 +210,6 @@ class TestRequestsAPI:
 
     @patch('app.middleware.auth_middleware.get_user_from_token')
     def test_unauthorized_without_token(self, mock_get_user, client):
-        """Test that requests without auth token are rejected."""
         mock_get_user.return_value = (None, None)
 
         # Make request without token

@@ -13,7 +13,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service.get_settings')
     @patch('app.services.product_enrichment_service.genai')
     def test_get_gemini_client(self, mock_genai, mock_settings):
-        """Test getting configured Gemini client."""
         mock_settings.return_value.GEMINI_API_KEY = 'test-key'
         mock_settings.return_value.GEMINI_MODEL = 'gemini-pro'
         mock_model = Mock()
@@ -28,7 +27,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_success(self, mock_settings, mock_get_client):
-        """Test successful product enrichment."""
         # Mock settings
         mock_settings.return_value = Mock()
 
@@ -63,7 +61,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_with_category(self, mock_settings, mock_get_client):
-        """Test enrichment with category hint."""
         mock_settings.return_value = Mock()
 
         enriched_data = {
@@ -93,7 +90,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_with_context(self, mock_settings, mock_get_client):
-        """Test enrichment with additional context."""
         mock_settings.return_value = Mock()
 
         enriched_data = {
@@ -126,7 +122,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_handles_markdown_response(self, mock_settings, mock_get_client):
-        """Test handling of markdown-wrapped JSON response."""
         mock_settings.return_value = Mock()
 
         enriched_data = {
@@ -157,7 +152,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_missing_required_field(self, mock_settings, mock_get_client):
-        """Test error when required field is missing."""
         mock_settings.return_value = Mock()
 
         # Missing 'vendor' field
@@ -174,13 +168,12 @@ class TestProductEnrichmentService:
         mock_model.generate_content.return_value = mock_response
         mock_get_client.return_value = mock_model
 
-        with pytest.raises(Exception, match="Product enrichment failed.*Missing or empty required field"):
+        with pytest.raises(Exception, match="Missing required field"):
             enrich_product("Test Product")
 
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_empty_required_field(self, mock_settings, mock_get_client):
-        """Test error when required field is empty."""
         mock_settings.return_value = Mock()
 
         enriched_data = {
@@ -197,13 +190,12 @@ class TestProductEnrichmentService:
         mock_model.generate_content.return_value = mock_response
         mock_get_client.return_value = mock_model
 
-        with pytest.raises(Exception, match="Product enrichment failed.*Missing or empty required field"):
+        with pytest.raises(Exception, match="Missing required field"):
             enrich_product("Test Product")
 
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_invalid_json(self, mock_settings, mock_get_client):
-        """Test error handling for invalid JSON response."""
         mock_settings.return_value = Mock()
 
         mock_response = Mock()
@@ -212,13 +204,12 @@ class TestProductEnrichmentService:
         mock_model.generate_content.return_value = mock_response
         mock_get_client.return_value = mock_model
 
-        with pytest.raises(ValueError, match="Failed to parse Gemini response as JSON"):
+        with pytest.raises(ValueError, match="Failed to parse Gemini response"):
             enrich_product("Test Product")
 
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_adds_empty_metadata(self, mock_settings, mock_get_client):
-        """Test that missing metadata dict is added."""
         mock_settings.return_value = Mock()
 
         enriched_data = {
@@ -245,7 +236,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_gemini_exception(self, mock_settings, mock_get_client):
-        """Test error handling when Gemini API fails."""
         mock_settings.return_value = Mock()
 
         mock_model = Mock()
@@ -257,7 +247,6 @@ class TestProductEnrichmentService:
 
     @patch('app.services.product_enrichment_service.enrich_product')
     def test_enrich_product_batch_success(self, mock_enrich):
-        """Test successful batch enrichment."""
         mock_enrich.side_effect = [
             {"name": "Product 1", "vendor": "Vendor1", "description": "Desc1",
              "category": "Cat1", "confidence": "high", "metadata": {}},
@@ -273,7 +262,6 @@ class TestProductEnrichmentService:
 
     @patch('app.services.product_enrichment_service.enrich_product')
     def test_enrich_product_batch_with_error(self, mock_enrich):
-        """Test batch enrichment with one failure."""
         mock_enrich.side_effect = [
             {"name": "Product 1", "vendor": "Vendor1", "description": "Desc1",
              "category": "Cat1", "confidence": "high", "metadata": {}},
@@ -293,7 +281,6 @@ class TestProductEnrichmentService:
 
     @patch('app.services.product_enrichment_service.enrich_product')
     def test_enrich_product_batch_empty_list(self, mock_enrich):
-        """Test batch enrichment with empty list."""
         results = enrich_product_batch([])
 
         assert results == []
@@ -301,7 +288,6 @@ class TestProductEnrichmentService:
 
     @patch('app.services.product_enrichment_service.enrich_product')
     def test_enrich_product_batch_all_failures(self, mock_enrich):
-        """Test batch enrichment where all products fail."""
         mock_enrich.side_effect = Exception("API Error")
 
         results = enrich_product_batch(["Product 1", "Product 2"])
@@ -313,7 +299,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_null_price(self, mock_settings, mock_get_client):
-        """Test enrichment with null price."""
         mock_settings.return_value = Mock()
 
         enriched_data = {
@@ -343,7 +328,6 @@ class TestProductEnrichmentService:
     @patch('app.services.product_enrichment_service._get_gemini_client')
     @patch('app.services.product_enrichment_service.get_settings')
     def test_enrich_product_usage_based_pricing(self, mock_settings, mock_get_client):
-        """Test enrichment with usage-based pricing."""
         mock_settings.return_value = Mock()
 
         enriched_data = {

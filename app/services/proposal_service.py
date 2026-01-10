@@ -11,7 +11,6 @@ VALID_PROPOSAL_TYPES = ('ADD_ITEM', 'REPLACE_ITEM', 'DEPRECATE_ITEM')
 
 
 def _get_client(user_token: Optional[str] = None):
-    """Get appropriate Supabase client based on whether user token is provided."""
     if user_token:
         return get_supabase_user_client(user_token)
     return get_supabase_admin()
@@ -123,10 +122,7 @@ def approve_proposal(
     org_id: Optional[str] = None,
     user_token: Optional[str] = None
 ) -> Dict:
-    """Approve and merge proposal atomically via stored procedure."""
     supabase = _get_client(user_token)
-
-    # Get proposal first to determine type and generate embedding
     proposal = get_proposal(proposal_id, user_token=user_token)
 
     if org_id and proposal['org_id'] != org_id:
@@ -135,7 +131,6 @@ def approve_proposal(
     if proposal['status'] != 'pending':
         raise ConflictError("Only pending proposals can be approved")
 
-    # Generate embedding for item creation (ADD_ITEM and REPLACE_ITEM)
     embedding = None
     if proposal['proposal_type'] in ['ADD_ITEM', 'REPLACE_ITEM']:
         embedding = encode_catalog_item(
@@ -144,7 +139,6 @@ def approve_proposal(
             proposal.get('item_category', '')
         )
 
-    # Call appropriate stored procedure based on proposal type
     if proposal['proposal_type'] == 'ADD_ITEM':
         response = supabase.rpc('merge_add_item_proposal', {
             'p_proposal_id': proposal_id,
@@ -174,7 +168,6 @@ def approve_proposal(
     result = response.data
     logger.info(f"Merged {proposal['proposal_type']} proposal {proposal_id}")
 
-    # Log audit events (separate from transaction - acceptable)
     log_event(
         org_id=proposal['org_id'],
         event_type='proposal.merged',
@@ -195,7 +188,6 @@ def approve_proposal(
             metadata={'name': proposal['item_name'], 'via_proposal': proposal_id}
         )
 
-    # Re-fetch the full proposal to return
     return get_proposal(proposal_id, user_token=user_token)
 
 

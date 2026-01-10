@@ -1,3 +1,4 @@
+"""CatalogAI MCP server for Claude integration."""
 import os
 import sys
 import httpx
@@ -5,9 +6,7 @@ from typing import Optional, Dict, Any, List
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
-# Load .env from project root
 load_dotenv(os.path.join(os.path.dirname(__file__), '..', '.env'))
-
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 mcp = FastMCP("catalogai")
@@ -21,19 +20,23 @@ _auth_state = {
 }
 
 
+class APIError(Exception):
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        self.message = message
+        super().__init__(f"API Error {status_code}: {message}")
+
+
 def _do_login(email: str, password: str) -> Dict[str, Any]:
-    """Authenticate with Supabase and store JWT."""
     supabase_url = os.getenv('SUPABASE_URL')
     supabase_key = os.getenv('SUPABASE_KEY')
     api_url = os.getenv('API_URL', 'http://localhost:5001')
 
     if not supabase_url or not supabase_key:
-        raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY in environment")
-
-    auth_url = f"{supabase_url}/auth/v1/token?grant_type=password"
+        raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY")
 
     response = httpx.post(
-        auth_url,
+        f"{supabase_url}/auth/v1/token?grant_type=password",
         json={"email": email, "password": password},
         headers={"apikey": supabase_key},
         timeout=10.0
@@ -42,16 +45,13 @@ def _do_login(email: str, password: str) -> Dict[str, Any]:
 
     data = response.json()
     access_token = data.get('access_token')
-    user = data.get('user', {})
-
     if not access_token:
         raise ValueError("No access token in response")
 
     _auth_state['access_token'] = access_token
-    _auth_state['user_id'] = user.get('id')
+    _auth_state['user_id'] = data.get('user', {}).get('id')
     _auth_state['api_url'] = api_url
 
-    # Get org/role info from API
     user_info = _api_call('GET', '/api/auth/verify')
     if user_info:
         _auth_state['org_id'] = user_info.get('org_id')
@@ -63,13 +63,6 @@ def _do_login(email: str, password: str) -> Dict[str, Any]:
         "org_id": _auth_state['org_id'],
         "role": _auth_state['user_role']
     }
-
-
-class APIError(Exception):
-    def __init__(self, status_code: int, message: str):
-        self.status_code = status_code
-        self.message = message
-        super().__init__(f"API Error {status_code}: {message}")
 
 
 def _api_call(method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
@@ -86,11 +79,9 @@ def _api_call(method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         response = httpx.request(method, url, headers=headers, timeout=30.0, **kwargs)
         response.raise_for_status()
         return response.json()
-
     except httpx.HTTPStatusError as e:
         try:
-            error_data = e.response.json()
-            error_msg = error_data.get('error', e.response.text)
+            error_msg = e.response.json().get('error', e.response.text)
         except Exception:
             error_msg = e.response.text
         raise APIError(e.response.status_code, error_msg)
@@ -100,11 +91,9 @@ def _api_call(method: str, endpoint: str, **kwargs) -> Dict[str, Any]:
         raise Exception("Connection failed")
 
 
-# Auth Tools
-
 @mcp.tool()
 def login(email: str, password: str) -> Dict[str, Any]:
-    """Login with email/password. Must be called before using other tools."""
+    """Login with email/password. Required before using other tools."""
     try:
         return _do_login(email, password)
     except httpx.HTTPStatusError as e:
@@ -115,9 +104,9 @@ def login(email: str, password: str) -> Dict[str, Any]:
 
 @mcp.tool()
 def whoami() -> Dict[str, Any]:
-    """Check current authentication status."""
+    """Check authentication status."""
     if not _auth_state['access_token']:
-        return {"authenticated": False, "message": "Not logged in. Call login(email, password) first."}
+        return {"authenticated": False, "message": "Not logged in"}
     return {
         "authenticated": True,
         "user_id": _auth_state['user_id'],
@@ -126,34 +115,30 @@ def whoami() -> Dict[str, Any]:
     }
 
 
-# Catalog Tools
-
 @mcp.tool()
 def search_catalog(query: str, limit: int = 10, threshold: float = 0.3) -> Dict[str, Any]:
-    """Search catalog items using semantic similarity."""
+    """Semantic search for catalog items."""
     return _api_call('POST', '/api/catalog/search', json={'query': query, 'limit': limit, 'threshold': threshold})
 
 
 @mcp.tool()
 def get_catalog_item(item_id: str) -> Dict[str, Any]:
-    """Get catalog item details by ID."""
+    """Get catalog item by ID."""
     return _api_call('GET', f'/api/catalog/items/{item_id}')
 
 
 @mcp.tool()
 def list_catalog(limit: int = 50, category: Optional[str] = None) -> Dict[str, Any]:
-    """List catalog items with optional category filter."""
+    """List catalog items."""
     params = {'limit': limit}
     if category:
         params['category'] = category
     return _api_call('GET', '/api/catalog/items', params=params)
 
 
-# Request Tools
-
 @mcp.tool()
 def create_request(product_name: str, justification: str, use_ai_enrichment: bool = True) -> Dict[str, Any]:
-    """Create a new procurement request."""
+    """Create procurement request."""
     return _api_call('POST', '/api/catalog/request-new-item', json={
         'name': product_name,
         'justification': justification,
@@ -163,7 +148,7 @@ def create_request(product_name: str, justification: str, use_ai_enrichment: boo
 
 @mcp.tool()
 def list_requests(status: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
-    """List procurement requests. Status: pending, approved, rejected."""
+    """List requests. Status: pending/approved/rejected."""
     params = {'limit': limit}
     if status:
         params['status'] = status
@@ -172,7 +157,7 @@ def list_requests(status: Optional[str] = None, limit: int = 50) -> Dict[str, An
 
 @mcp.tool()
 def get_request(request_id: str) -> Dict[str, Any]:
-    """Get request details by ID."""
+    """Get request by ID."""
     return _api_call('GET', f'/api/requests/{request_id}')
 
 
@@ -183,7 +168,7 @@ def approve_request(
     create_proposal: bool = False,
     proposal_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    """Approve a procurement request (reviewer/admin only)."""
+    """Approve request (reviewer/admin)."""
     payload = {'status': 'approved', 'review_notes': review_notes}
     if create_proposal and proposal_data:
         payload['create_proposal'] = proposal_data
@@ -192,11 +177,9 @@ def approve_request(
 
 @mcp.tool()
 def reject_request(request_id: str, review_notes: str) -> Dict[str, Any]:
-    """Reject a procurement request (reviewer/admin only)."""
+    """Reject request (reviewer/admin)."""
     return _api_call('POST', f'/api/requests/{request_id}/review', json={'status': 'rejected', 'review_notes': review_notes})
 
-
-# Proposal Tools
 
 @mcp.tool()
 def create_proposal(
@@ -213,7 +196,7 @@ def create_proposal(
     replacing_item_id: Optional[str] = None,
     request_id: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Create a catalog change proposal. Types: ADD_ITEM, REPLACE_ITEM, DEPRECATE_ITEM."""
+    """Create catalog proposal. Types: ADD_ITEM/REPLACE_ITEM/DEPRECATE_ITEM."""
     return _api_call('POST', '/api/proposals', json={
         'proposal_type': proposal_type,
         'item_name': item_name,
@@ -232,7 +215,7 @@ def create_proposal(
 
 @mcp.tool()
 def list_proposals(status: Optional[str] = None, limit: int = 50) -> Dict[str, Any]:
-    """List proposals. Status: pending, approved, rejected, merged."""
+    """List proposals. Status: pending/approved/rejected/merged."""
     params = {'limit': limit}
     if status:
         params['status'] = status
@@ -241,27 +224,25 @@ def list_proposals(status: Optional[str] = None, limit: int = 50) -> Dict[str, A
 
 @mcp.tool()
 def get_proposal(proposal_id: str) -> Dict[str, Any]:
-    """Get proposal details by ID."""
+    """Get proposal by ID."""
     return _api_call('GET', f'/api/proposals/{proposal_id}')
 
 
 @mcp.tool()
 def approve_proposal(proposal_id: str, review_notes: Optional[str] = None) -> Dict[str, Any]:
-    """Approve a proposal (reviewer/admin only). Auto-updates catalog."""
+    """Approve and merge proposal (reviewer/admin)."""
     return _api_call('POST', f'/api/proposals/{proposal_id}/approve', json={'review_notes': review_notes})
 
 
 @mcp.tool()
 def reject_proposal(proposal_id: str, review_notes: str) -> Dict[str, Any]:
-    """Reject a proposal (reviewer/admin only)."""
+    """Reject proposal (reviewer/admin)."""
     return _api_call('POST', f'/api/proposals/{proposal_id}/reject', json={'review_notes': review_notes})
 
 
-# AI Enrichment Tools
-
 @mcp.tool()
 def enrich_product(product_name: str, category: Optional[str] = None) -> Dict[str, Any]:
-    """Use Gemini AI to auto-populate product details from a name."""
+    """AI-enrich product details from name."""
     payload = {'product_name': product_name}
     if category:
         payload['category'] = category
@@ -270,17 +251,15 @@ def enrich_product(product_name: str, category: Optional[str] = None) -> Dict[st
 
 @mcp.tool()
 def enrich_products_batch(product_names: List[str]) -> Dict[str, Any]:
-    """Enrich multiple products in batch (max 20)."""
+    """Batch enrich products (max 20)."""
     if len(product_names) > 20:
         return {"error": "Maximum 20 products per batch"}
     return _api_call('POST', '/api/products/enrich-batch', json={'product_names': product_names})
 
 
-# Admin Tools
-
 @mcp.tool()
 def get_audit_log(limit: int = 100, event_type: Optional[str] = None, resource_type: Optional[str] = None) -> Dict[str, Any]:
-    """Get audit log events (admin only)."""
+    """Get audit log (admin only)."""
     params = {'limit': limit}
     if event_type:
         params['event_type'] = event_type
@@ -291,46 +270,21 @@ def get_audit_log(limit: int = 100, event_type: Optional[str] = None, resource_t
 
 @mcp.tool()
 def check_embeddings_health() -> Dict[str, Any]:
-    """Check and repair catalog embeddings (admin only)."""
+    """Check/repair embeddings (admin only)."""
     return _api_call('POST', '/api/admin/embeddings/check')
 
 
-# Skills Tool
-
 @mcp.tool()
 def list_skills() -> str:
-    """List available skills for code execution."""
+    """List skills for code execution."""
     skills_readme = os.path.join(os.path.dirname(__file__), 'skills', 'README.md')
     with open(skills_readme) as f:
         return f.read()
 
 
-# Code Execution Tool
-
 @mcp.tool()
 def execute_code(code: str, description: str = "Execute Python code") -> str:
-    """
-    Execute Python code in Docker sandbox.
-
-    For multi-step operations, use the skills module:
-    ```python
-    from skills import catalog, reqs, proposals
-    import json
-
-    # Example: find matches for pending requests
-    pending = reqs.list_all(status="pending")
-    result = []
-    for req in pending:
-        matches = catalog.search(req["search_query"], limit=3)
-        result.append({"request_id": req["id"], "matches": matches})
-    print(json.dumps(result))
-    ```
-
-    Run `list_skills` tool first to see all available functions.
-    Output JSON only - no formatting, no emojis.
-
-    Security: 512MB RAM, 50% CPU, 30s timeout, isolated network.
-    """
+    """Execute Python in Docker sandbox. Use skills module for multi-step ops. Run list_skills first."""
     from catalogai_mcp.code_executor import CodeExecutor
 
     if not hasattr(execute_code, '_executor'):
@@ -342,7 +296,6 @@ def execute_code(code: str, description: str = "Execute Python code") -> str:
     }
 
     result = execute_code._executor.execute(code, context)
-
     if result['status'] == 'error':
         return f"Error:\n{result['output']}"
     return result['output']

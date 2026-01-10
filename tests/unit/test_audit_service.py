@@ -7,7 +7,6 @@ class TestAuditService:
 
     @patch('app.services.audit_service.get_supabase_admin')
     def test_log_event_success(self, mock_admin_getter):
-        """Test logging an audit event."""
         # Setup mock
         mock_admin = Mock()
         mock_admin_getter.return_value = mock_admin
@@ -46,7 +45,6 @@ class TestAuditService:
 
     @patch('app.services.audit_service.get_supabase_admin')
     def test_get_audit_log_for_org(self, mock_admin_getter):
-        """Test retrieving audit logs for an organization."""
         # Setup mock
         mock_admin = Mock()
         mock_admin_getter.return_value = mock_admin
@@ -79,7 +77,6 @@ class TestAuditService:
 
     @patch('app.services.audit_service.get_supabase_admin')
     def test_get_audit_log_with_filters(self, mock_admin_getter):
-        """Test retrieving audit logs with event type filter."""
         # Setup mock
         mock_admin = Mock()
         mock_admin_getter.return_value = mock_admin
@@ -113,7 +110,6 @@ class TestAuditService:
 
     @patch('app.services.audit_service.get_supabase_admin')
     def test_get_audit_log_for_resource(self, mock_admin_getter):
-        """Test retrieving audit logs for a specific resource."""
         # Setup mock
         mock_admin = Mock()
         mock_admin_getter.return_value = mock_admin
@@ -157,7 +153,6 @@ class TestAuditService:
 
     @patch('app.services.audit_service.get_supabase_admin')
     def test_log_event_handles_missing_metadata(self, mock_admin_getter):
-        """Test logging event with no metadata provided."""
         # Setup mock
         mock_admin = Mock()
         mock_admin_getter.return_value = mock_admin

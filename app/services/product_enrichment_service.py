@@ -1,99 +1,33 @@
-"""
-Product enrichment service using Gemini AI with search capabilities.
-Automatically populates product fields (price, vendor, SKU, etc.) from a product name.
-"""
+"""Product enrichment using Gemini AI."""
 import json
-import google.generativeai as genai
+import logging
 from typing import Dict, Optional, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import google.generativeai as genai
+
 from app.config import get_settings
 from app.utils.resilience import resilient_external_call
-from concurrent.futures import ThreadPoolExecutor, as_completed
-import logging
 
 logger = logging.getLogger(__name__)
 
+ENRICHMENT_PROMPT = """You are a product data enrichment assistant. Given a product name, provide accurate product information as structured data.
 
-def _get_gemini_client():
-    """Get configured Gemini client."""
-    settings = get_settings()
-    genai.configure(api_key=settings.GEMINI_API_KEY)
-    return genai.GenerativeModel(settings.GEMINI_MODEL)
+{context}
 
+Extract the following:
+1. Standardized Name
+2. Description (1-2 sentences)
+3. Category (Electronics, Furniture, Office Supplies, Software, Services, etc.)
+4. Vendor/Manufacturer
+5. Price in USD (null if unavailable)
+6. Pricing Type: "one_time", "monthly", "yearly", "usage_based", or null
+7. Product URL (official page)
+8. SKU/Model number
+9. Metadata (brand, specs, features)
+10. Confidence: "high", "medium", or "low"
 
-@resilient_external_call("gemini", max_retries=3)
-def enrich_product(
-    product_name: str,
-    category: Optional[str] = None,
-    additional_context: Optional[str] = None
-) -> Dict:
-    """
-    Use Gemini AI with search to automatically populate product fields.
-
-    This function uses Gemini Flash with Google Search grounding to find
-    real-time product information and structure it for catalog ingestion.
-
-    Args:
-        product_name: Descriptive product name (e.g., "MacBook Pro 16 inch M3 Max")
-        category: Optional category hint to improve search accuracy
-        additional_context: Optional additional context for disambiguation
-
-    Returns:
-        Dictionary with enriched product fields:
-        {
-            "name": str,              # Cleaned/standardized product name
-            "description": str,       # Generated product description
-            "category": str,          # Inferred or confirmed category
-            "vendor": str,            # Manufacturer/vendor name
-            "price": float,           # Current price in USD (if found)
-            "pricing_type": str,      # "one_time", "monthly", "yearly", "usage_based"
-            "product_url": str,       # Official product page URL
-            "sku": str,               # Product SKU or model number
-            "metadata": dict,         # Additional attributes (brand, specs, etc.)
-            "confidence": str         # "high", "medium", "low" based on search results
-        }
-
-    Example:
-        result = enrich_product("MacBook Pro 16 inch M3 Max", category="Electronics")
-        # Returns structured data with price, vendor (Apple), SKU, etc.
-    """
-    settings = get_settings()
-
-    # Build enrichment prompt
-    prompt_context = f"Product name: {product_name}"
-    if category:
-        prompt_context += f"\nCategory: {category}"
-    if additional_context:
-        prompt_context += f"\nAdditional context: {additional_context}"
-
-    prompt = f"""You are a product data enrichment assistant. Given a product name, use your knowledge to provide accurate product information and return structured data.
-
-{prompt_context}
-
-Based on the product name, extract the following information:
-
-1. **Standardized Name**: Clean, official product name
-2. **Description**: 1-2 sentence product description highlighting key features
-3. **Category**: Product category (Electronics, Furniture, Office Supplies, Software, Services, etc.)
-4. **Vendor**: Manufacturer or primary vendor name
-5. **Price**: Current price in USD (if available). Return null if not found or if pricing varies significantly.
-6. **Pricing Type**: Classify as:
-   - "one_time" for one-time purchases
-   - "monthly" for monthly subscriptions
-   - "yearly" for annual subscriptions
-   - "usage_based" for metered/consumption pricing
-7. **Product URL**: Link to official product page or primary vendor listing
-8. **SKU**: Product SKU, model number, or product code
-9. **Metadata**: Additional structured attributes like:
-   - brand
-   - specifications (screen size, RAM, storage, etc.)
-   - warranty information
-   - key features
-10. **Confidence**: Rate your confidence in the data ("high", "medium", "low") based on:
-    - Search result quality and consistency
-    - Whether you found an official product page
-    - Price availability and currency
-
-Return ONLY a valid JSON object with this exact structure (no markdown, no code blocks):
+Return ONLY valid JSON:
 {{
     "name": "string",
     "description": "string",
@@ -107,46 +41,62 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no code 
     "confidence": "high" | "medium" | "low"
 }}
 
-If you cannot find reliable information for a field, use null. Be conservative with price data - only include if you find a clear, current USD price."""
+Use null for unknown fields. Only include price if you find a clear USD value."""
+
+
+def _get_gemini_client():
+    settings = get_settings()
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    return genai.GenerativeModel(settings.GEMINI_MODEL)
+
+
+@resilient_external_call("gemini", max_retries=3)
+def enrich_product(
+    product_name: str,
+    category: Optional[str] = None,
+    additional_context: Optional[str] = None
+) -> Dict:
+    """Use Gemini AI to populate product fields from a product name."""
+    settings = get_settings()
+
+    context = f"Product name: {product_name}"
+    if category:
+        context += f"\nCategory: {category}"
+    if additional_context:
+        context += f"\nContext: {additional_context}"
+
+    prompt = ENRICHMENT_PROMPT.format(context=context)
 
     try:
         model = _get_gemini_client()
-
-        # Use Gemini to generate product data
         response = model.generate_content(
             prompt,
             generation_config=genai.GenerationConfig(
-                temperature=0.1,  # Low temperature for factual accuracy
+                temperature=0.1,
                 top_p=0.8,
                 top_k=40,
                 max_output_tokens=2048,
             )
         )
 
-        # Parse JSON response
         result_text = response.text.strip()
-
-        # Handle markdown code blocks if present
         if result_text.startswith('```'):
             result_text = result_text.split('```json\n', 1)[-1]
             result_text = result_text.rsplit('```', 1)[0].strip()
 
         enriched_data = json.loads(result_text)
 
-        # Validate required fields
-        required_fields = ['name', 'description', 'category', 'vendor', 'confidence']
-        for field in required_fields:
+        for field in ['name', 'description', 'category', 'vendor', 'confidence']:
             if field not in enriched_data or not enriched_data[field]:
-                raise ValueError(f"Missing or empty required field: {field}")
+                raise ValueError(f"Missing required field: {field}")
 
-        # Ensure metadata exists
         if 'metadata' not in enriched_data or not isinstance(enriched_data['metadata'], dict):
             enriched_data['metadata'] = {}
 
         return enriched_data
 
     except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to parse Gemini response as JSON: {e}. Response: {result_text[:200]}")
+        raise ValueError(f"Failed to parse Gemini response: {e}")
     except Exception as e:
         raise Exception(f"Product enrichment failed: {str(e)}")
 
@@ -156,28 +106,11 @@ def enrich_product_batch(
     max_workers: int = 5,
     timeout_per_item: float = 60.0
 ) -> List[Dict]:
-    """
-    Enrich multiple products in parallel using ThreadPoolExecutor.
-
-    Uses concurrent processing to significantly improve performance.
-    Example: 20 products @ 3s each = 12s total (vs 60s sequential)
-
-    Deduplication: Duplicate product names are only enriched once,
-    saving API calls. Results are copied to all duplicate positions.
-
-    Args:
-        product_names: List of product names to enrich
-        max_workers: Maximum number of concurrent threads (default: 5)
-        timeout_per_item: Timeout in seconds for each enrichment call (default: 60)
-
-    Returns:
-        List of enriched product data dictionaries (maintains input order).
-        Failed items will have an "error" field and confidence="low".
-    """
+    """Enrich multiple products in parallel. Deduplicates to save API calls."""
     if not product_names:
         return []
 
-    results = [None] * len(product_names)  # Pre-allocate to maintain order
+    results = [None] * len(product_names)
 
     # Deduplicate: map unique names to their indices
     unique_names: Dict[str, List[int]] = {}
@@ -187,21 +120,17 @@ def enrich_product_batch(
             unique_names[normalized] = []
         unique_names[normalized].append(i)
 
-    # Build list of unique items to process (use first occurrence's original name)
-    unique_items = []
-    for normalized, indices in unique_names.items():
-        original_name = product_names[indices[0]]
-        unique_items.append((normalized, original_name, indices))
+    unique_items = [
+        (norm, product_names[indices[0]], indices)
+        for norm, indices in unique_names.items()
+    ]
 
     logger.info(f"Batch enrichment: {len(product_names)} items, {len(unique_items)} unique")
 
     def enrich_with_key(normalized: str, original_name: str) -> tuple[str, Dict]:
-        """Enrich product and return with normalized key for mapping."""
-        result = enrich_product(original_name)
-        return (normalized, result)
+        return (normalized, enrich_product(original_name))
 
     def make_error_result(product_name: str, error_msg: str) -> Dict:
-        """Create an error result dict for failed enrichments."""
         return {
             "name": product_name,
             "description": "",
@@ -216,35 +145,30 @@ def enrich_product_batch(
             "error": error_msg
         }
 
-    # Process unique items in parallel with ThreadPoolExecutor
     enriched_cache: Dict[str, Dict] = {}
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        # Submit tasks for unique items only
         futures = {
-            executor.submit(enrich_with_key, normalized, original_name): (normalized, original_name)
-            for normalized, original_name, _ in unique_items
+            executor.submit(enrich_with_key, norm, name): (norm, name)
+            for norm, name, _ in unique_items
         }
 
-        # Collect results as they complete with timeout
         for future in as_completed(futures):
             normalized, original_name = futures[future]
             try:
                 key, result = future.result(timeout=timeout_per_item)
                 enriched_cache[key] = result
             except TimeoutError:
-                logger.error(f"Timeout enriching product '{original_name}'")
+                logger.error(f"Timeout enriching '{original_name}'")
                 enriched_cache[normalized] = make_error_result(original_name, "Enrichment timed out")
             except Exception as e:
-                logger.error(f"Failed to enrich product '{original_name}': {e}")
+                logger.error(f"Failed to enrich '{original_name}': {e}")
                 enriched_cache[normalized] = make_error_result(original_name, str(e))
 
-    # Map results back to all original indices (including duplicates)
     for normalized, indices in unique_names.items():
         result = enriched_cache.get(normalized)
         if result:
             for idx in indices:
-                # Copy result to avoid shared mutation issues
                 results[idx] = result.copy()
 
     return results

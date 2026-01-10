@@ -14,7 +14,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_search_items_success(self, mock_org_role, mock_user, mock_search, client):
-        """Test successful catalog search."""
         # Setup mocks
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org_role.return_value = ('org-123', 'requester')
@@ -37,7 +36,6 @@ class TestCatalogAPI:
         assert len(data['results']) == 1
 
     def test_search_items_missing_query(self, client, auth_headers):
-        """Test search with missing query parameter."""
         with patch('app.middleware.auth_middleware.get_user_from_token') as mock_user, \
              patch('app.middleware.auth_middleware.get_user_org_and_role') as mock_org:
             mock_user.return_value = (Mock(id='user-123'), 'test-token')
@@ -58,7 +56,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_list_items_success(self, mock_org_role, mock_user, mock_list, client):
-        """Test successful item listing."""
         # Setup mocks
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org_role.return_value = ('org-123', 'requester')
@@ -83,7 +80,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_request_new_item_success(self, mock_org_role, mock_user, mock_proposal, client):
-        """Test successful new item request."""
         # Setup mocks
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org_role.return_value = ('org-123', 'requester')
@@ -113,7 +109,6 @@ class TestCatalogAPI:
         assert data['proposal']['id'] == 'proposal-123'
 
     def test_request_new_item_missing_name(self, client):
-        """Test request new item without name."""
         with patch('app.middleware.auth_middleware.get_user_from_token') as mock_user, \
              patch('app.middleware.auth_middleware.get_user_org_and_role') as mock_org:
             mock_user.return_value = (Mock(id='user-123'), 'test-token')
@@ -134,7 +129,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_search_items_with_custom_threshold(self, mock_org, mock_user, mock_search, client):
-        """Test search with custom threshold and limit."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
         mock_search.return_value = [{'item_name': 'Test'}]
@@ -158,7 +152,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_search_items_service_error(self, mock_org, mock_user, mock_search, client):
-        """Test search when service raises error."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
         mock_search.side_effect = Exception("Database error")
@@ -177,7 +170,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_item_success(self, mock_org, mock_user, mock_get, client):
-        """Test getting single item."""
         mock_user.return_value = (Mock(id=TEST_USER_UUID), 'test-token')
         mock_org.return_value = (TEST_ORG_UUID, 'member')
         mock_get.return_value = {
@@ -199,7 +191,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_item_wrong_org(self, mock_org, mock_user, mock_get, client):
-        """Test getting item from different org."""
         other_org_uuid = 'cccccccc-dddd-eeee-ffff-000000000000'
         mock_user.return_value = (Mock(id=TEST_USER_UUID), 'test-token')
         mock_org.return_value = (TEST_ORG_UUID, 'member')
@@ -220,7 +211,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_item_not_found(self, mock_org, mock_user, mock_get, client):
-        """Test getting non-existent item."""
         nonexistent_uuid = 'ffffffff-ffff-ffff-ffff-ffffffffffff'
         mock_user.return_value = (Mock(id=TEST_USER_UUID), 'test-token')
         mock_org.return_value = (TEST_ORG_UUID, 'member')
@@ -237,7 +227,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_success(self, mock_org, mock_user, mock_create, client):
-        """Test creating item as admin."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'admin')
         mock_create.return_value = {
@@ -264,7 +253,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_missing_name(self, mock_org, mock_user, client):
-        """Test creating item without name."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'admin')
 
@@ -279,7 +267,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_non_admin(self, mock_org, mock_user, client):
-        """Test creating item as non-admin."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
 
@@ -295,7 +282,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_list_items_with_status(self, mock_org, mock_user, mock_list, client):
-        """Test listing items with status filter."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
         mock_list.return_value = [{'id': 'item-1', 'status': 'active'}]
@@ -312,7 +298,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_list_items_error(self, mock_org, mock_user, mock_list, client):
-        """Test list items with service error."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
         mock_list.side_effect = Exception("Database error")
@@ -329,7 +314,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_request_new_item_with_ai(self, mock_org, mock_user, mock_proposal, mock_enrich, client):
-        """Test requesting new item with AI enrichment."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
 
@@ -371,7 +355,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_request_new_item_manual(self, mock_org, mock_user, mock_proposal, client):
-        """Test requesting new item with manual entry."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
 
@@ -399,7 +382,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_request_new_item_ai_error(self, mock_org, mock_user, mock_enrich, client):
-        """Test requesting new item when AI enrichment fails."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
         mock_enrich.side_effect = Exception("AI service error")
@@ -418,7 +400,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_xss_prevention(self, mock_org, mock_user, client):
-        """Test that XSS content is rejected in item creation."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'admin')
 
@@ -442,7 +423,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_invalid_url(self, mock_org, mock_user, client):
-        """Test that invalid URLs are rejected."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'admin')
 
@@ -460,7 +440,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_invalid_pricing_type(self, mock_org, mock_user, client):
-        """Test that invalid pricing type is rejected."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'admin')
 
@@ -478,7 +457,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_negative_price(self, mock_org, mock_user, client):
-        """Test that negative price is rejected."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'admin')
 
@@ -496,7 +474,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_create_item_price_exceeds_max(self, mock_org, mock_user, client):
-        """Test that price exceeding max is rejected."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'admin')
 
@@ -514,7 +491,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_search_invalid_threshold(self, mock_org, mock_user, client):
-        """Test that invalid threshold is rejected."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
 
@@ -538,7 +514,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_search_invalid_limit(self, mock_org, mock_user, client):
-        """Test that invalid limit is rejected."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
 
@@ -554,7 +529,6 @@ class TestCatalogAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_item_invalid_uuid(self, mock_org, mock_user, client):
-        """Test that invalid UUID format is rejected."""
         mock_user.return_value = (Mock(id='user-123'), 'test-token')
         mock_org.return_value = ('org-123', 'member')
 

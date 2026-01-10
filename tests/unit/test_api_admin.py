@@ -20,7 +20,6 @@ class TestAdminAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
     def test_get_audit_log_as_admin(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test getting audit logs as admin."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
@@ -56,7 +55,6 @@ class TestAdminAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
     def test_get_audit_log_with_filters(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test getting audit logs with event type filter."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
@@ -91,7 +89,6 @@ class TestAdminAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_audit_log_requires_admin(self, mock_org_role, mock_get_user, client):
-        """Test that only admins can access audit logs."""
         # Setup mocks - requester role
         user_mock = Mock()
         user_mock.id = "user-123"
@@ -111,7 +108,6 @@ class TestAdminAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
     def test_get_audit_log_for_resource(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test getting audit logs for a specific resource."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
@@ -157,7 +153,6 @@ class TestAdminAPI:
     @patch('app.middleware.auth_middleware.get_user_from_token')
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     def test_get_audit_log_reviewer_forbidden(self, mock_org_role, mock_get_user, client):
-        """Test that reviewers cannot access audit logs."""
         # Setup mocks - reviewer role
         user_mock = Mock()
         user_mock.id = "reviewer-123"
@@ -177,7 +172,6 @@ class TestAdminAPI:
     @patch('app.middleware.auth_middleware.get_user_org_and_role')
     @patch('app.api.admin.audit_service')
     def test_get_audit_log_with_default_limit(self, mock_service, mock_org_role, mock_get_user, client):
-        """Test that default limit is applied when not specified."""
         # Setup mocks
         user_mock = Mock()
         user_mock.id = "admin-123"
