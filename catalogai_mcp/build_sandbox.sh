@@ -12,7 +12,7 @@ if [ $? -eq 0 ]; then
     echo "✅ Sandbox image built successfully: catalogai-sandbox:latest"
     echo ""
     echo "To verify, run:"
-    echo "  docker run --rm catalogai-sandbox:latest python -c 'from catalogai import CatalogAI; print(\"SDK installed:\", CatalogAI.__name__)'"
+    echo "  docker run --rm catalogai-sandbox:latest python -c 'from catalogai_sdk import CatalogAI; print(\"SDK installed:\", CatalogAI.__name__)'"
 else
     echo "❌ Failed to build sandbox image"
     exit 1

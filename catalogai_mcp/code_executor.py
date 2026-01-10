@@ -23,6 +23,7 @@ class CodeExecutor:
         self.docker_client = docker.from_env()
         self.image_name = image_name
         self.timeout = timeout
+        self.skills_dir = os.path.join(os.path.dirname(__file__), 'skills')
 
     def execute(self, code: str, context: dict) -> dict:
         """
@@ -55,10 +56,12 @@ class CodeExecutor:
                 f"python /code/{os.path.basename(code_file)}",
                 environment={
                     "CATALOGAI_API_URL": api_url,
-                    "CATALOGAI_AUTH_TOKEN": context["auth_token"]
+                    "CATALOGAI_AUTH_TOKEN": context["auth_token"],
+                    "PYTHONPATH": "/code"
                 },
                 volumes={
-                    os.path.dirname(code_file): {'bind': '/code', 'mode': 'ro'}
+                    os.path.dirname(code_file): {'bind': '/code', 'mode': 'ro'},
+                    self.skills_dir: {'bind': '/code/skills', 'mode': 'ro'}
                 },
                 mem_limit="512m",  # 512MB RAM limit
                 cpu_period=100000,
